@@ -438,6 +438,17 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .status-chip.todo { background: var(--bleu-nav-10); color: var(--bleu-principal); }
 .status-chip.shared { background: var(--bleu-action-10); color: var(--bleu-action-dark); }
 
+/* Rangement d'un tour passé. Registre neutre : ce n'est ni une alerte ni une
+   étape du parcours, seulement l'endroit où ce tour est classé. */
+.archive-panel {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px;
+  border: 1px solid var(--bordures); border-left: 4px solid var(--texte-secondaire);
+  border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 16px;
+  background: var(--neutre-surface);
+}
+.archive-panel.is-reopened { border-left-color: var(--bleu-secondaire); background: var(--lumiere-principale); }
+.archive-text { margin: 0; flex: 1; min-width: 200px; font-size: 13.5px; line-height: 1.45; color: var(--texte-secondaire); }
+
 /* Récapitulatif de la validation, en tête du tour. Les compteurs se lisent
    d'abord, la phrase explique quoi faire ensuite. */
 .validation-panel {
