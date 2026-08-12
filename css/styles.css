@@ -465,6 +465,8 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .vcount.ok { color: #17792a; }
 .vcount.wait { color: #8a5a05; }
 .vcount.act { color: var(--rouge-principal); }
+/* Reste au bac à sable : c'est au courtier d'agir, pas à un tiers. */
+.vcount.todo { color: var(--bleu-principal); }
 .validation-help { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--texte-secondaire); }
 
 /* Arbitrage d'une réponse, sous l'arrêt qu'elle concerne. */
@@ -606,7 +608,13 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 
 .stop-icon { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--lumiere-principale); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
 .stop-icon svg { width: 18px; height: 18px; color: var(--bleu-principal); }
-.stop-icon .stop-glyph-confirmed, .stop-icon .stop-glyph-pending, .stop-icon .stop-glyph-refused { width: 30px; height: 24px; }
+.stop-icon .stop-glyph-confirmed, .stop-icon .stop-glyph-pending, .stop-icon .stop-glyph-refused,
+.stop-icon .stop-glyph-sandbox { width: 30px; height: 24px; }
+
+/* Arrêt épinglé : la demande est partie, la poignée ne répond plus. Elle reste
+   en place — la retirer ferait sauter l'alignement des cartes entre elles —
+   mais s'efface et perd son curseur de saisie. */
+.stop-card.is-pinned .drag-handle { opacity: 0.25; cursor: default; }
 
 .stop-icon.pause { background: var(--bleu-action-10); }
 .stop-icon.pause svg { color: var(--bleu-secondaire); }
