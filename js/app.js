@@ -58,10 +58,19 @@ const STOP_ICON_REFUSED_SVG = `<svg class="stop-glyph-refused" viewBox="0 0 31 2
   <path d="M24.4249 26.6561C26.0369 26.6561 27.5829 26.0158 28.7228 24.8759C29.8627 23.736 30.5031 22.19 30.5031 20.5779C30.5031 18.9659 29.8627 17.4199 28.7228 16.28C27.5829 15.1401 26.0369 14.4998 24.4249 14.4998C22.8128 14.4998 21.2668 15.1401 20.1269 16.28C18.9871 17.4199 18.3467 18.9659 18.3467 20.5779C18.3467 22.19 18.9871 23.736 20.1269 24.8759C21.2668 26.0158 22.8128 26.6561 24.4249 26.6561ZM22.5017 18.6548C22.7249 18.4316 23.0858 18.4316 23.3066 18.6548L24.4225 19.7707L25.5384 18.6548C25.7616 18.4316 26.1225 18.4316 26.3433 18.6548C26.5641 18.878 26.5665 19.2388 26.3433 19.4597L25.2274 20.5756L26.3433 21.6915C26.5665 21.9147 26.5665 22.2756 26.3433 22.4964C26.1201 22.7172 25.7592 22.7196 25.5384 22.4964L24.4225 21.3805L23.3066 22.4964C23.0834 22.7196 22.7225 22.7196 22.5017 22.4964C22.2809 22.2732 22.2785 21.9123 22.5017 21.6915L23.6176 20.5756L22.5017 19.4597C22.2785 19.2365 22.2785 18.8756 22.5017 18.6548Z" fill="#C8102E"/>
 </svg>`;
 
+/* Bac à sable : la maison seule, sans badge. Tant que la demande n'est pas
+   partie, la propriété n'a pas d'état à montrer — elle est simplement retenue.
+   Même tracé et même cadrage que les autres glyphes, pour que les maisons
+   s'alignent dans la liste ; seule la zone du badge reste vide. */
+const STOP_ICON_SANDBOX_SVG = `<svg class="stop-glyph-sandbox" viewBox="0 0 31 26" fill="none">
+  <path d="M22.8969 13.884C22.4148 14.216 21.8965 14.2978 21.3144 14.2706C21.3099 16.667 21.3326 19.0133 21.3008 21.4006C21.278 22.6739 20.1912 23.7425 18.918 23.7652C17.6448 23.788 16.367 23.7743 15.0892 23.7698C14.68 23.7698 14.4071 23.4742 14.4071 23.0377C14.4026 21.96 14.4071 20.8823 14.4026 19.8046C14.4026 19.0952 14.4026 18.3813 14.4026 17.6719C14.398 16.9398 13.9388 16.4714 13.1976 16.4623C12.5018 16.4532 11.8061 16.4532 11.1104 16.4623C10.3874 16.4714 9.92355 16.9443 9.92355 17.6674C9.91901 19.4271 9.91901 21.1824 9.91901 22.9422C9.91901 23.5288 9.67346 23.7743 9.08231 23.7743C7.92731 23.7743 6.77231 23.7743 5.61731 23.7743C4.09398 23.7698 3.01174 22.7057 3.00264 21.1778C2.99355 18.8769 2.9981 16.5715 2.9981 14.2706C0.888174 14.4706 -0.339583 12.097 1.1701 10.5646C4.28952 7.44515 7.40893 4.32573 10.5329 1.21087C10.7284 1.00624 10.9558 0.837995 11.2059 0.701578C11.9334 0.337798 13.0657 0.451479 13.7569 1.16085C15.5076 2.95701 17.2946 4.7168 19.0681 6.49022C20.4277 7.8544 21.7782 9.22767 23.1606 10.5737C24.07 11.4604 23.9836 13.161 22.8969 13.884Z" stroke="#1A2740"/>
+</svg>`;
+
 // Un glyphe par réponse du courtier, quand le design en fournit un. Les statuts
 // sans glyphe propre retombent sur le badge d'attente : ajouter le leur revient
 // à ajouter une ligne ici.
 const STOP_GLYPHS = {
+  sandbox: STOP_ICON_SANDBOX_SVG,
   confirmed: STOP_ICON_CONFIRMED_SVG,
   refused: STOP_ICON_REFUSED_SVG,
 };
@@ -105,10 +114,14 @@ function formatDateGroup(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return `${d.getDate()} ${MONTHS_FR[d.getMonth()][0].toUpperCase()}${MONTHS_FR[d.getMonth()].slice(1)} ${d.getFullYear()}`;
 }
+// Date locale, pas UTC : `toISOString` bascule au jour suivant dès 20 h à
+// Montréal, ce qui rangeait un tour daté d'aujourd'hui dans les tours passés.
+// Le champ date du formulaire parle en jours de calendrier, pas en instants.
 function todayPlus(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /* ---------------- Mock data ---------------- */
@@ -471,6 +484,10 @@ function makeStop(address, mls, opts = {}) {
     proposedStart: opts.proposedStart || null,  // créneau suggéré par le courtier inscripteur
     external: opts.external || false,           // arrêt hors catalogue, envoyé par courriel
     visited: opts.visited || false,
+    // Porte à lui seul le régime de l'arrêt : null = bac à sable, horodaté =
+    // demande partie chez le courtier inscripteur.
+    sentAt: opts.sentAt || null,
+    relancedAt: null,
   };
 }
 function makePause(duration = 30) {
@@ -484,6 +501,9 @@ function makePause(duration = 30) {
 // sont les plus fréquents en pratique et étaient jusqu'ici inexprimables, donc
 // invisibles pour le courtier acheteur qui devait les suivre de tête.
 const STOP_STATUSES = {
+  // Bac à sable : la propriété est retenue, rien n'est parti. Pas de libellé —
+  // il n'y a rien à dire d'un état qui n'engage personne.
+  sandbox:   { label: '', short: 'Bac à sable', tone: 'none', action: false },
   pending:   { label: 'En attente de confirmation du courtier inscripteur', short: 'En attente', tone: 'pending', action: true },
   confirmed: { label: 'Confirmée', short: 'Confirmée', tone: 'ok', action: false },
   proposed:  { label: 'Autre créneau proposé', short: 'Contre-proposition', tone: 'warn', action: true },
@@ -498,7 +518,7 @@ const STOP_STATUS_CYCLE = ['pending', 'confirmed', 'proposed', 'refused', 'norep
 // Deux champs stockés au lieu de quatre états à maintenir en cohérence.
 const TOUR_STATUSES = {
   brouillon:     { label: 'Brouillon', tone: 'draft', help: 'Aucune demande envoyée. Le tour n\'est visible que par vous.' },
-  en_validation: { label: 'En validation', tone: 'pending', help: 'Les demandes sont parties. En attente de la réponse des courtiers inscripteurs.' },
+  en_cours:      { label: 'Tour créé et en cours', tone: 'pending', help: 'Des demandes sont parties. Le tour est engagé : les arrêts envoyés ne se déplacent plus qu\'en passant par « Éditer ».' },
   confirme:      { label: 'Confirmé', tone: 'ok', help: 'Toutes les visites sont confirmées. Le tour peut être partagé avec un acheteur.' },
   non_envoye:    { label: 'Non envoyé', tone: 'todo', help: 'L\'acheteur est choisi et les visites sont confirmées, mais le tour ne lui a pas encore été envoyé.' },
   partage:       { label: 'Partagé', tone: 'shared', help: 'Le tour a été partagé avec l\'acheteur.' },
@@ -509,43 +529,57 @@ const TOUR_STATUSES = {
 // changé, pas la demande.
 const RELANCE_DELAY_MS = 48 * 3600 * 1000;
 
-function effectiveStopStatus(stop, tour) {
+// L'état d'un arrêt se lit sur un seul champ : `sentAt`. Tant que la demande
+// n'est pas partie, l'arrêt est dans le bac à sable — pas de statut, pas de
+// badge, rien à attendre de personne. Une fois partie, c'est la réponse du
+// courtier inscripteur qui parle, et le silence trop long devient « sans
+// réponse ». La fonction ne dépend plus du tour : le régime est celui de
+// l'arrêt, pas celui du parcours.
+function effectiveStopStatus(stop) {
+  if (!stop.sentAt) return 'sandbox';
   if (stop.status !== 'pending') return stop.status;
-  const since = tour && (tour.relancedAt || tour.sentAt);
-  if (since && Date.now() - since > RELANCE_DELAY_MS) return 'noreply';
+  const since = stop.relancedAt || stop.sentAt;
+  if (Date.now() - since > RELANCE_DELAY_MS) return 'noreply';
   return 'pending';
 }
-function stopNeedsAction(stop, tour) {
-  return !!STOP_STATUSES[effectiveStopStatus(stop, tour)].action;
+function stopNeedsAction(stop) {
+  return !!STOP_STATUSES[effectiveStopStatus(stop)].action;
 }
 
-// « En attente de confirmation » suppose qu'une demande est partie. Sur un tour
-// jamais envoyé elle n'est que préparée, et l'attente n'a pas commencé : même
-// statut, mais on dit lequel des deux est vrai.
-function stopStatusLabel(st, tour) {
-  if (st === 'pending' && !(tour && tour.sentAt)) return 'Demande de visite pas encore envoyée';
-  return STOP_STATUSES[st].label;
+// Un arrêt reste déplaçable tant que personne n'a été prévenu. Envoyer sa
+// demande l'épingle : son heure est devenue un engagement envers un courtier
+// inscripteur, elle ne se renégocie plus par glisser-déposer mais par « Éditer ».
+function stopIsDraggable(stop) {
+  return !stop.sentAt;
 }
 
+// Le tour n'a pas de champ `status` : il se déduit de l'état de ses arrêts.
 function tourStatus(t) {
-  if (!t.sentAt) return 'brouillon';
-  if (t.sharedAt) return 'partage';
   const props = t.stops.filter(s => s.type === 'property');
-  if (props.some(s => stopNeedsAction(s, t))) return 'en_validation';
-  // Tout est confirmé : reste à savoir si l'acheteur est au courant. Choisir
-  // l'acheteur et lui envoyer le tour sont deux gestes distincts, donc deux
-  // états distincts — sinon « Confirmé » masque le fait qu'il n'a rien reçu.
+  if (!props.some(s => s.sentAt)) return 'brouillon';
+  if (t.sharedAt) return 'partage';
+  // Une demande encore au bac à sable compte autant qu'une réponse à traiter :
+  // dans les deux cas le tour n'est pas bouclé.
+  if (props.some(s => !s.sentAt || stopNeedsAction(s))) return 'en_cours';
   return t.buyerId ? 'non_envoye' : 'confirme';
 }
 
-// Compte des réponses, pour le récapitulatif de l'étape « attendre la
-// validation » et pour décider quels CTA proposer.
+// Date d'envoi du tour, dérivée : la première demande partie. Sert d'horodatage
+// d'affichage, plus de règle métier.
+function tourSentAt(t) {
+  const sent = t.stops.filter(s => s.sentAt).map(s => s.sentAt);
+  return sent.length ? Math.min(...sent) : null;
+}
+
+// Compte des arrêts, pour le récapitulatif en tête du tour et pour décider
+// quels CTA proposer.
 function validationTally(t) {
   const props = t.stops.filter(s => s.type === 'property');
-  const tally = { total: props.length, confirmed: 0, waiting: 0, toHandle: 0 };
+  const tally = { total: props.length, sandbox: 0, confirmed: 0, waiting: 0, toHandle: 0 };
   props.forEach(s => {
-    const st = effectiveStopStatus(s, t);
-    if (st === 'confirmed') tally.confirmed++;
+    const st = effectiveStopStatus(s);
+    if (st === 'sandbox') tally.sandbox++;
+    else if (st === 'confirmed') tally.confirmed++;
     else if (st === 'pending') tally.waiting++;
     else tally.toHandle++;
   });
@@ -579,28 +613,28 @@ function seedTours() {
     {
       id: 't1', buyerId: 'b1', date: todayPlus(2), time: '15:00', sentAt: Date.now() - 100000, sharedAt: Date.now() - 95000,
       stops: [
-        makeStop('500 Rue D\'Iberville, Montréal, QC H2H 2S6', '18234567', { status: 'confirmed', lockedStart: '15:00' }),
+        makeStop('500 Rue D\'Iberville, Montréal, QC H2H 2S6', '18234567', { status: 'confirmed', lockedStart: '15:00', sentAt: Date.now() - 100000 }),
         makePause(30),
-        makeStop('515 Boul. Lacombe, Repentigny, QC J6A 1E5', '18234599', { status: 'confirmed', lockedStart: '16:00' }),
-        makeStop('214 Rue des Oranges, Montréal, QC H2H 2S6', '18234612', { status: 'confirmed', lockedStart: '17:00' }),
+        makeStop('515 Boul. Lacombe, Repentigny, QC J6A 1E5', '18234599', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000 }),
+        makeStop('214 Rue des Oranges, Montréal, QC H2H 2S6', '18234612', { status: 'confirmed', lockedStart: '17:00', sentAt: Date.now() - 100000 }),
       ],
     },
     {
       id: 't2', buyerId: 'b2', date: todayPlus(2), time: '14:30', sentAt: Date.now() - 90000,
       stops: [
-        makeStop('500 Rue d\'Avaugour, Boucherville, QC J4B 5E7', '18234671', { status: 'confirmed', lockedStart: '14:30' }),
-        makeStop('123 Avenue des Étoiles, Montréal, QC H3C 1A2', '18234733', { status: 'pending' }),
-        makeStop('44 Rue du Parc, Brossard, QC J4W 2K3', '18235634', { status: 'confirmed', lockedStart: '16:00' }),
+        makeStop('500 Rue d\'Avaugour, Boucherville, QC J4B 5E7', '18234671', { status: 'confirmed', lockedStart: '14:30', sentAt: Date.now() - 100000 }),
+        makeStop('123 Avenue des Étoiles, Montréal, QC H3C 1A2', '18234733', { status: 'pending', sentAt: Date.now() - 100000 }),
+        makeStop('44 Rue du Parc, Brossard, QC J4W 2K3', '18235634', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000 }),
       ],
     },
     {
       // Contre-proposition et refus : les deux cas qui demandent un arbitrage.
       id: 't3', buyerId: 'b1', date: todayPlus(4), time: '15:00', sentAt: Date.now() - 80000,
       stops: [
-        makeStop('210 Boulevard Saint-Martin, Laval, QC H7M 1Y8', '18235589', { status: 'confirmed', lockedStart: '15:00' }),
-        makeStop('145 Rue Sainte-Catherine, Montréal, QC H2X 1K8', '18235477', { status: 'proposed', proposedStart: '16:15' }),
-        makeStop('567 Boulevard des Citrons, Boucherville, QC J4B 7K1', '18235078', { status: 'refused' }),
-        makeStop('567 Boulevard des Oliviers, Longueuil, QC J4K 2M9', '18235144', { status: 'confirmed', lockedStart: '17:00' }),
+        makeStop('210 Boulevard Saint-Martin, Laval, QC H7M 1Y8', '18235589', { status: 'confirmed', lockedStart: '15:00', sentAt: Date.now() - 100000 }),
+        makeStop('145 Rue Sainte-Catherine, Montréal, QC H2X 1K8', '18235477', { status: 'proposed', proposedStart: '16:15', sentAt: Date.now() - 100000 }),
+        makeStop('567 Boulevard des Citrons, Boucherville, QC J4B 7K1', '18235078', { status: 'refused', sentAt: Date.now() - 100000 }),
+        makeStop('567 Boulevard des Oliviers, Longueuil, QC J4K 2M9', '18235144', { status: 'confirmed', lockedStart: '17:00', sentAt: Date.now() - 100000 }),
       ],
     },
     {
@@ -608,8 +642,8 @@ function seedTours() {
       // l'étape 4 du parcours, prête à être jouée en démo.
       id: 't4', buyerId: null, date: todayPlus(4), time: '16:00', sentAt: Date.now() - 70000,
       stops: [
-        makeStop('78 Avenue Victoria, Saint-Lambert, QC J4P 2H5', '18235512', { status: 'confirmed', lockedStart: '16:00' }),
-        makeStop('32 Rue Principale, Saint-Lambert, QC J4R 1H4', '18235356', { status: 'confirmed', lockedStart: '17:00' }),
+        makeStop('78 Avenue Victoria, Saint-Lambert, QC J4P 2H5', '18235512', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000 }),
+        makeStop('32 Rue Principale, Saint-Lambert, QC J4R 1H4', '18235356', { status: 'confirmed', lockedStart: '17:00', sentAt: Date.now() - 100000 }),
       ],
     },
     {
@@ -618,8 +652,8 @@ function seedTours() {
       // raison la plus courante de vouloir ramener un tour passé.
       id: 't5', buyerId: 'b2', date: todayPlus(-5), time: '13:00', sentAt: Date.now() - 600000, sharedAt: Date.now() - 590000,
       stops: [
-        makeStop('88 Rue des Érables, Longueuil, QC J4K 3C7', '18235410', { status: 'confirmed', lockedStart: '13:00', visited: true }),
-        makeStop('567 Boulevard des Oliviers, Longueuil, QC J4K 2M9', '18235144', { status: 'confirmed', lockedStart: '14:00', visited: true }),
+        makeStop('88 Rue des Érables, Longueuil, QC J4K 3C7', '18235410', { status: 'confirmed', lockedStart: '13:00', visited: true, sentAt: Date.now() - 100000 }),
+        makeStop('567 Boulevard des Oliviers, Longueuil, QC J4K 2M9', '18235144', { status: 'confirmed', lockedStart: '14:00', visited: true, sentAt: Date.now() - 100000 }),
       ],
     },
   ];
@@ -942,9 +976,11 @@ function applyOptimization(plan) {
 // Relancer remet le compteur du délai à zéro : les arrêts « sans réponse »
 // repassent en attente, puisqu'on vient de redemander.
 function relanceTour() {
-  const t = currentTour();
-  if (!t) return;
-  t.relancedAt = Date.now();
+  const now = Date.now();
+  state.draft.stops.forEach(s => {
+    if (s.sentAt && stopNeedsAction(s)) s.relancedAt = now;
+  });
+  persistAnswer();
   render();
 }
 
@@ -965,10 +1001,17 @@ function shareTourWithBuyer(buyer) {
 // Étape 1 → 3 : les demandes partent aux courtiers inscripteurs. Prévenir
 // l'acheteur au passage ne vaut que s'il est déjà connu ; sinon le partage
 // viendra à l'étape 2, une fois les visites confirmées.
+// Envoi groupé : un raccourci pour ne pas cliquer huit fois. L'état obtenu est
+// exactement celui de huit envois individuels — c'est chaque arrêt qui porte sa
+// date d'envoi, le tour n'en a pas.
 function sendTourToBrokers(notifyBuyer) {
+  const now = Date.now();
+  state.draft.stops.forEach(s => {
+    if (s.type !== 'property' || s.sentAt) return;
+    s.sentAt = now;
+    s.relancedAt = null;
+  });
   commitDraft({
-    sentAt: Date.now(),
-    relancedAt: null,
     sharedAt: notifyBuyer && state.draft.buyer ? Date.now() : null,
   });
   state.modal = null;
@@ -1119,7 +1162,7 @@ function builderTitle() {
   const d = state.draft;
   if (!d) return 'Créer un tour de visites';
   const saved = currentTour();
-  if (!saved || !saved.sentAt) return 'Créer un tour de visites';
+  if (!saved || !tourSentAt(saved)) return 'Créer un tour de visites';
   if (d.buyer) return `Tour de ${d.buyer.prenom} ${d.buyer.nom}`;
   // Tour parti sans acheteur : la date est le seul nom qu'il ait.
   return `Tour du ${formatDateLong(d.date)}`;
@@ -1215,9 +1258,9 @@ function renderListScreen() {
         const tally = validationTally(t);
         // Le badge dit où en est le tour ; la ligne du dessous dit ce qu'il
         // reste à faire, qui est l'information que le courtier cherche.
-        const detail = status === 'en_validation' && tally.toHandle
+        const detail = status === 'en_cours' && tally.toHandle
           ? `${tally.toHandle} réponse${tally.toHandle > 1 ? 's' : ''} à traiter`
-          : status === 'en_validation'
+          : status === 'en_cours'
             ? `${tally.confirmed}/${tally.total} confirmée${tally.confirmed > 1 ? 's' : ''}`
             : status === 'non_envoye'
               ? 'À envoyer à l\'acheteur'
@@ -1225,7 +1268,7 @@ function renderListScreen() {
         return `
           <div class="tour-card" data-open-tour="${t.id}">
             <div class="tour-card-icon">
-              ${tourIconSvg(status === 'en_validation' || status === 'brouillon' ? 'pending' : 'confirmed')}
+              ${tourIconSvg(status === 'en_cours' || status === 'brouillon' ? 'pending' : 'confirmed')}
             </div>
             <div class="tour-card-body">
               <p class="tour-card-name">${esc(b ? `${b.prenom} ${b.nom}` : 'Sans acheteur')} <span class="status-chip ${meta.tone}">${esc(meta.label)}</span></p>
@@ -1405,9 +1448,7 @@ function renderBuilderScreen() {
   const liveTour = {
     stops: draft.stops,
     buyerId: buyer ? buyer.id : null,
-    sentAt: saved && saved.sentAt,
     sharedAt: saved && saved.sharedAt,
-    relancedAt: saved && saved.relancedAt,
   };
   const status = tourStatus(liveTour);
   const tally = validationTally(liveTour);
@@ -1461,9 +1502,14 @@ function renderBuilderScreen() {
     }
     let conflictHtml = '';
     if (conflict) {
+      // « Confirmée » ne vaut que si le courtier inscripteur a répondu. Sur un
+      // arrêt du bac à sable, l'heure est seulement celle qu'on a retenue.
+      // Le conflit porte sur l'arrêt qui suit, d'où la lecture du statut ici :
+      // `st` n'existe que dans la branche « propriété », plus bas.
+      const heureDite = effectiveStopStatus(stop) === 'confirmed' ? 'l\'heure confirmée' : 'l\'heure prévue';
       const text = conflict.afterPause
         ? `<strong>Attention :</strong> trajet estimé ${conflict.travelBefore} min, dépasse le temps de pause disponible.`
-        : `<strong>Attention :</strong> arrivée prévue à ${minutesToLabel(conflict.arrival)}, après l'heure confirmée de ${minutesToLabel(conflict.confirmed)}.`;
+        : `<strong>Attention :</strong> arrivée prévue à ${minutesToLabel(conflict.arrival)}, après ${heureDite} de ${minutesToLabel(conflict.confirmed)}.`;
       conflictHtml = `
         <div class="alert-banner warning">${icon('warning')} <span class="banner-text">${text}</span>
           <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}">${icon('pencil')}</button></span>
@@ -1487,9 +1533,12 @@ function renderBuilderScreen() {
           </div>
         </div>`;
     } else {
-      const st = effectiveStopStatus(stop, liveTour);
+      const st = effectiveStopStatus(stop);
       const stMeta = STOP_STATUSES[st];
-      const statusLabel = `<span class="status-${stMeta.tone}">${esc(stopStatusLabel(st, liveTour))}${st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : ''}</span>`;
+      // En bac à sable il n'y a pas de libellé à écrire : la ligne s'arrête à
+      // l'heure de visite.
+      const statusLabel = !stMeta.label ? '' :
+        ` <span class="dot">•</span> <span class="status-${stMeta.tone}">${esc(stMeta.label)}${st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : ''}</span>`;
       // The simulate control sits on the status itself rather than adding a
       // fourth icon to the action row: it acts on the thing it changes, and the
       // row is already carrying three buttons.
@@ -1504,20 +1553,22 @@ function renderBuilderScreen() {
         : reportPending
           ? ` <span class="meta-part"><span class="dot">•</span> <span class="status-report-todo">${icon('star')} Compte rendu à envoyer</span></span>`
           : ` <span class="meta-part"><span class="dot">•</span> <span class="status-visited">${icon('star')} Visité</span></span>`;
-      const statusHtml = !flag('simulateConfirmation') ? statusLabel : `
+      // Rien à simuler tant que la demande n'est pas partie : le simulateur
+      // joue la réponse d'un courtier qui n'a encore rien reçu.
+      const statusHtml = (!flag('simulateConfirmation') || st === 'sandbox') ? statusLabel : `
         <button class="status-sim" data-sim-status="${stop.id}"
           title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
           ${statusLabel}${icon('sync')}
         </button>`;
       card = `
-        <div class="stop-card${sharesSlot || opensSlot ? ' same-slot' : ''}" draggable="true" data-stop-id="${stop.id}">
-          <span class="drag-handle">${icon('drag')}</span>
+        <div class="stop-card${sharesSlot || opensSlot ? ' same-slot' : ''}${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
+          <span class="drag-handle" ${stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`}>${icon('drag')}</span>
           <div class="stop-icon">
             ${stopGlyph(st)}
           </div>
           <div class="stop-body">
             <p class="stop-address">${esc(stop.address)}${stop.external ? ` <span class="ext-chip" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>` : ''}</p>
-            <p class="stop-meta">Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)} <span class="dot">•</span> ${statusHtml}${visitedHtml}</p>
+            <p class="stop-meta">Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}${statusHtml}${visitedHtml}</p>
           </div>
           <div class="stop-actions">
             <button class="btn-icon" data-edit-stop="${stop.id}">${icon('pencil')}</button>
@@ -1579,21 +1630,24 @@ function renderBuilderScreen() {
       <button class="btn-inline" id="btn-reopen-tour">Le remettre dans les tours à venir</button>
     </div>`);
 
-  const panelStatuses = ['en_validation', 'confirme', 'non_envoye'];
+  const panelStatuses = ['en_cours', 'confirme', 'non_envoye'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
     <div class="validation-panel ${status}">
       <div class="validation-counts">
         <span class="vcount ok">${tally.confirmed} confirmée${tally.confirmed > 1 ? 's' : ''}</span>
         ${tally.waiting ? `<span class="vcount wait">${tally.waiting} en attente</span>` : ''}
         ${tally.toHandle ? `<span class="vcount act">${tally.toHandle} à traiter</span>` : ''}
+        ${tally.sandbox ? `<span class="vcount todo">${tally.sandbox} à envoyer</span>` : ''}
       </div>
-      <p class="validation-help">${status === 'non_envoye'
-        ? `Toutes les visites sont confirmées. ${esc(buyer.prenom)} n'a pas encore reçu le tour.`
-        : status === 'confirme'
-          ? 'Toutes les visites sont confirmées. Le tour peut être partagé avec un acheteur.'
-          : tally.toHandle
-            ? 'Des courtiers ont répondu autre chose qu\'une confirmation. Traitez ces réponses pour débloquer le partage.'
-            : 'Demandes envoyées. En attente de la réponse des courtiers inscripteurs.'}</p>
+      <p class="validation-help">${tally.sandbox
+        ? `${tally.sandbox} propriété${tally.sandbox > 1 ? 's' : ''} ${tally.sandbox > 1 ? 'restent' : 'reste'} au bac à sable : ${tally.sandbox > 1 ? 'leurs demandes ne sont' : 'sa demande n\'est'} pas encore partie${tally.sandbox > 1 ? 's' : ''}.`
+        : status === 'non_envoye'
+          ? `Toutes les visites sont confirmées. ${esc(buyer.prenom)} n'a pas encore reçu le tour.`
+          : status === 'confirme'
+            ? 'Toutes les visites sont confirmées. Le tour peut être partagé avec un acheteur.'
+            : tally.toHandle
+              ? 'Des courtiers ont répondu autre chose qu\'une confirmation. Traitez ces réponses pour débloquer le partage.'
+              : 'Demandes envoyées. En attente de la réponse des courtiers inscripteurs.'}</p>
     </div>`;
 
   return `
@@ -1677,6 +1731,18 @@ function renderFooterActions(propertyCount, status, tally) {
       ${del}
     `;
   }
+  // Un tour engagé peut contenir des arrêts encore au bac à sable — ajoutés
+  // après coup. Tant qu'il en reste, les envoyer passe avant tout le reste :
+  // c'est la seule action qui fasse avancer le tour.
+  if (tally.sandbox) {
+    return `
+      <button class="btn btn-primary" id="btn-send-tour">
+        Envoyer ${tally.sandbox} demande${tally.sandbox > 1 ? 's' : ''} de visite${tally.sandbox > 1 ? 's' : ''}
+      </button>
+      <button class="btn btn-outline" id="btn-share-buyer">${shareLabel}</button>
+      ${del}
+    `;
+  }
   // En attente des courtiers. Le partage n'est ouvert que si le client accepte
   // de diffuser un tour partiellement confirmé ; sinon on dit pourquoi plutôt
   // que de laisser un bouton grisé sans explication. Le décompte des réponses
@@ -1704,7 +1770,7 @@ function renderModal() {
   if (state.modal.type === 'confirmSendUpdate') { root.innerHTML = renderConfirmSendUpdateModal(); return; }
   if (state.modal.type === 'confirmDeleteTour') {
     const t = currentTour();
-    const wasSent = !!(t && t.sentAt);
+    const wasSent = !!(t && tourSentAt(t));
     const body = wasSent
       ? 'Cette action supprimera définitivement ce tour et annulera les demandes de visites déjà envoyées aux courtiers inscripteurs. Cette action est irréversible.'
       : 'Cette action supprimera définitivement ce tour de visites. Cette action est irréversible.';
@@ -1847,7 +1913,10 @@ function renderVisitRequestModal() {
   // inscripteur : le bouton nomme cet envoi. Tant que rien n'est parti, il n'y a
   // rien à faire valider — on enregistre, simplement.
   const editing = !!m.editStopId;
-  const sent = !!(currentTour() && currentTour().sentAt);
+  // C'est l'arrêt qui est engagé ou non, pas le tour : dans un tour déjà parti,
+  // une propriété ajoutée depuis reste au bac à sable jusqu'à son propre envoi.
+  const editedStop = editing ? state.draft.stops.find(s => s.id === m.editStopId) : null;
+  const sent = !!(editedStop && editedStop.sentAt);
   const saveLabel = !editing ? 'Enregistrer'
     : sent ? 'Envoyer la modification pour validation'
     : 'Enregistrer la modification';
@@ -2068,9 +2137,8 @@ function renderConfirmModal(title, body, confirmId) {
 function renderConfirmRemoveStopModal() {
   const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
   if (!stop) return '';
-  const tour = currentTour();
-  const st = effectiveStopStatus(stop, tour);
-  const sent = !!(tour && tour.sentAt);
+  const st = effectiveStopStatus(stop);
+  const sent = !!stop.sentAt;
   const courtier = stop.courtier;
 
   const consequence = !courtier
@@ -2369,10 +2437,10 @@ function renderMapScreen() {
       ? `Débute vers ${minutesToLabel(start)}`
       : `Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}`;
     return `
-      <div class="stop-card" draggable="true" data-stop-id="${stop.id}">
-        <span class="drag-handle">${icon('drag')}</span>
+      <div class="stop-card${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
+        <span class="drag-handle" ${stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`}>${icon('drag')}</span>
         <div class="stop-icon ${stop.type === 'pause' ? 'pause' : ''}">
-          ${stop.type === 'pause' ? icon('pause') : stopGlyph(effectiveStopStatus(stop, currentTour()))}
+          ${stop.type === 'pause' ? icon('pause') : stopGlyph(effectiveStopStatus(stop))}
         </div>
         <div class="stop-body">
           <p class="stop-address">${label}</p>
@@ -2925,7 +2993,7 @@ function bindBuilderEvents() {
     el.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-sim-status'));
       if (!stop) return;
-      const cur = effectiveStopStatus(stop, currentTour());
+      const cur = effectiveStopStatus(stop);
       const next = STOP_STATUS_CYCLE[(STOP_STATUS_CYCLE.indexOf(cur) + 1) % STOP_STATUS_CYCLE.length];
       if (next === 'proposed') {
         const row = computeSchedule(state.draft).find(r => r.stop.id === stop.id);
@@ -2935,8 +3003,8 @@ function bindBuilderEvents() {
         // « Sans réponse » se déduit du temps écoulé : pour la démo, on recule
         // la date d'envoi au-delà du délai plutôt que d'inventer un statut.
         setStopStatus(stop, 'pending');
-        const t = currentTour();
-        if (t) { t.relancedAt = null; t.sentAt = Date.now() - RELANCE_DELAY_MS - 1000; }
+        stop.relancedAt = null;
+        stop.sentAt = Date.now() - RELANCE_DELAY_MS - 1000;
       } else {
         setStopStatus(stop, next);
       }
@@ -3280,18 +3348,31 @@ function bindReportEvents() {
   if (sendLaterBtn) sendLaterBtn.onclick = () => finalizeReport(false);
 }
 
+// Le glisser-déposer est l'outil du bac à sable : seul un arrêt dont la demande
+// n'est pas partie se saisit. Un arrêt engagé reste en revanche une destination
+// valable — son heure est épinglée par `lockedStart`, donc le contourner ne
+// déplace rien de ce qui a été promis à son courtier inscripteur. Le seul
+// chemin pour changer l'heure d'un arrêt engagé reste « Éditer ».
 function bindDragAndDrop() {
-  const cards = document.querySelectorAll('.stop-card');
-  cards.forEach(card => {
-    card.addEventListener('dragstart', () => {
-      state.dragStopId = card.getAttribute('data-stop-id');
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over'));
-    });
+  const stopById = (id) => state.draft.stops.find(s => s.id === id);
+  document.querySelectorAll('.stop-card').forEach(card => {
+    const stop = stopById(card.getAttribute('data-stop-id'));
+    if (!stop) return;
+
+    if (stopIsDraggable(stop)) {
+      card.addEventListener('dragstart', () => {
+        state.dragStopId = card.getAttribute('data-stop-id');
+        card.classList.add('dragging');
+      });
+      card.addEventListener('dragend', () => {
+        state.dragStopId = null;
+        card.classList.remove('dragging');
+        document.querySelectorAll('.stop-card').forEach(c => c.classList.remove('drag-over'));
+      });
+    }
+
     card.addEventListener('dragover', (e) => {
+      if (!state.dragStopId) return;
       e.preventDefault();
       card.classList.add('drag-over');
     });
@@ -3305,6 +3386,7 @@ function bindDragAndDrop() {
       const stops = state.draft.stops;
       const fromIdx = stops.findIndex(s => s.id === fromId);
       const toIdx = stops.findIndex(s => s.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return;
       const [moved] = stops.splice(fromIdx, 1);
       stops.splice(toIdx, 0, moved);
       markDirtyIfSent();
@@ -3392,7 +3474,7 @@ function bindModalEvents() {
       state.draft.stops = state.draft.stops.filter(s => s.id !== stop.id);
       // Retirer un arrêt après l'envoi annule une demande : c'est un échange
       // avec le courtier, pas une modification à lui renotifier.
-      if (currentTour() && currentTour().sentAt) persistAnswer(); else markDirtyIfSent();
+      if (stop.sentAt) persistAnswer(); else markDirtyIfSent();
       state.modal = null;
       render();
       showToast(`${stopShortLabel(stop)} retiré du tour.`);
@@ -3599,8 +3681,8 @@ function bindVisitRequestModalEvents() {
     // courtier inscripteur, il n'y a plus de mise à jour à lui promettre depuis
     // le pied de page. On enregistre donc directement au lieu de marquer le tour
     // modifié — sinon l'application redemanderait d'envoyer ce qui vient de l'être.
-    const sentTour = !!(currentTour() && currentTour().sentAt);
-    if (m.editStopId && sentTour) commitDraft();
+    const sentStop = !!stop.sentAt;
+    if (m.editStopId && sentStop) commitDraft();
     else markDirtyIfSent();
     // Le formulaire de saisie a fait son travail : on revient à la recherche,
     // pas à des champs déjà consommés.
@@ -3616,7 +3698,7 @@ function bindVisitRequestModalEvents() {
     render();
     const destinataire = m.external ? m.courtier : courtierFor(m.mls);
     showToast(m.editStopId
-      ? sentTour
+      ? sentStop
         ? `Modification envoyée à ${destinataire} pour validation.${slotChanged ? ' La visite repasse en attente de sa confirmation.' : ''}`
         : 'La demande de visite a été mise à jour.'
       : insertedBefore
