@@ -571,10 +571,13 @@ function stopShortLabel(stop) {
   return stop.address.split(',')[0];
 }
 
+// Les dates sont relatives au jour d'ouverture : « Passé » se déduit maintenant
+// de la date, donc des dates écrites en dur feraient basculer toute la démo dans
+// l'onglet Passé au bout de quelques semaines.
 function seedTours() {
   return [
     {
-      id: 't1', buyerId: 'b1', date: '2026-07-10', time: '15:00', sentAt: Date.now() - 100000, sharedAt: Date.now() - 95000,
+      id: 't1', buyerId: 'b1', date: todayPlus(2), time: '15:00', sentAt: Date.now() - 100000, sharedAt: Date.now() - 95000,
       stops: [
         makeStop('500 Rue D\'Iberville, Montréal, QC H2H 2S6', '18234567', { status: 'confirmed', lockedStart: '15:00' }),
         makePause(30),
@@ -583,7 +586,7 @@ function seedTours() {
       ],
     },
     {
-      id: 't2', buyerId: 'b2', date: '2026-07-10', time: '14:30', sentAt: Date.now() - 90000,
+      id: 't2', buyerId: 'b2', date: todayPlus(2), time: '14:30', sentAt: Date.now() - 90000,
       stops: [
         makeStop('500 Rue d\'Avaugour, Boucherville, QC J4B 5E7', '18234671', { status: 'confirmed', lockedStart: '14:30' }),
         makeStop('123 Avenue des Étoiles, Montréal, QC H3C 1A2', '18234733', { status: 'pending' }),
@@ -592,7 +595,7 @@ function seedTours() {
     },
     {
       // Contre-proposition et refus : les deux cas qui demandent un arbitrage.
-      id: 't3', buyerId: 'b1', date: '2026-07-12', time: '15:00', sentAt: Date.now() - 80000,
+      id: 't3', buyerId: 'b1', date: todayPlus(4), time: '15:00', sentAt: Date.now() - 80000,
       stops: [
         makeStop('210 Boulevard Saint-Martin, Laval, QC H7M 1Y8', '18235589', { status: 'confirmed', lockedStart: '15:00' }),
         makeStop('145 Rue Sainte-Catherine, Montréal, QC H2X 1K8', '18235477', { status: 'proposed', proposedStart: '16:15' }),
@@ -603,10 +606,20 @@ function seedTours() {
     {
       // Tour entièrement confirmé, pas encore rattaché à un acheteur : c'est
       // l'étape 4 du parcours, prête à être jouée en démo.
-      id: 't4', buyerId: null, date: '2026-07-12', time: '16:00', sentAt: Date.now() - 70000,
+      id: 't4', buyerId: null, date: todayPlus(4), time: '16:00', sentAt: Date.now() - 70000,
       stops: [
         makeStop('78 Avenue Victoria, Saint-Lambert, QC J4P 2H5', '18235512', { status: 'confirmed', lockedStart: '16:00' }),
         makeStop('32 Rue Principale, Saint-Lambert, QC J4R 1H4', '18235356', { status: 'confirmed', lockedStart: '17:00' }),
+      ],
+    },
+    {
+      // Tour de la semaine dernière : il peuple l'onglet « Passé » et sert de
+      // terrain à la réouverture. Un compte rendu reste à envoyer — c'est la
+      // raison la plus courante de vouloir ramener un tour passé.
+      id: 't5', buyerId: 'b2', date: todayPlus(-5), time: '13:00', sentAt: Date.now() - 600000, sharedAt: Date.now() - 590000,
+      stops: [
+        makeStop('88 Rue des Érables, Longueuil, QC J4K 3C7', '18235410', { status: 'confirmed', lockedStart: '13:00', visited: true }),
+        makeStop('567 Boulevard des Oliviers, Longueuil, QC J4K 2M9', '18235144', { status: 'confirmed', lockedStart: '14:00', visited: true }),
       ],
     },
   ];
@@ -721,10 +734,17 @@ function currentTour() {
   return state.editingTourId ? state.tours.find(t => t.id === state.editingTourId) : null;
 }
 
-// A tour moves to "Passé" once every property stop has been marked Visité.
+// Un tour bascule dans « Passé » quand sa date est derrière nous. C'est le
+// calendrier qui décide, pas l'état des comptes rendus : un tour dont la journée
+// est finie n'est plus à venir, même s'il reste des rapports à envoyer.
+//
+// `reopened` est la seule exception, et elle est explicite : le courtier a
+// demandé à le ramener. On garde un drapeau plutôt que de réécrire la date —
+// les visites ont bien eu lieu le jour dit, et le tour doit continuer de le
+// raconter.
 function tourIsCompleted(t) {
-  const props = t.stops.filter(s => s.type === 'property');
-  return !!t.sentAt && props.length > 0 && props.every(s => s.visited);
+  if (t.reopened) return false;
+  return t.date < todayPlus(0);
 }
 
 function markDirtyIfSent() {
@@ -1545,6 +1565,20 @@ function renderBuilderScreen() {
       </div>
     </div>`;
 
+  // Un tour daté d'hier se range tout seul dans « Passé ». Le courtier qui
+  // l'ouvre doit comprendre pourquoi il a quitté sa liste courante, et pouvoir
+  // le ramener sans avoir à mentir sur sa date (Nielsen #1 et #3).
+  const isPast = saved && saved.date < todayPlus(0);
+  const archivePanel = !isPast ? '' : (saved.reopened ? `
+    <div class="archive-panel is-reopened">
+      <p class="archive-text">Daté du ${formatDateLong(saved.date)}, ce tour est maintenu dans les tours à venir.</p>
+      <button class="btn-inline" id="btn-archive-tour">Le reclasser dans les tours passés</button>
+    </div>` : `
+    <div class="archive-panel">
+      <p class="archive-text">Ce tour date du ${formatDateLong(saved.date)}. Il est classé dans les tours passés.</p>
+      <button class="btn-inline" id="btn-reopen-tour">Le remettre dans les tours à venir</button>
+    </div>`);
+
   const panelStatuses = ['en_validation', 'confirme', 'non_envoye'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
     <div class="validation-panel ${status}">
@@ -1563,6 +1597,7 @@ function renderBuilderScreen() {
     </div>`;
 
   return `
+    ${archivePanel}
     ${buyerField}
     <div class="field-row">
       <div class="field">
@@ -2368,8 +2403,10 @@ function renderMapScreen() {
       </div>
     ` : ''}
 
+    <!-- Même action que dans le tour, donc même nom : « Optimiser par distance »
+         décrivait l'algorithme, pas ce que le courtier obtient. -->
     <button class="btn btn-outline btn-block" id="btn-optimize-map" style="margin-top:16px;" ${canOptimize ? '' : 'disabled'}>
-      Optimiser par distance
+      Optimiser le tour
     </button>
 
     <p class="section-label" style="margin-top:20px;">Réordonner les arrêts :</p>
@@ -2750,6 +2787,20 @@ function leaveTour(go) {
 /* ----- Builder events ----- */
 
 function bindBuilderEvents() {
+
+  // Reclassement d'un tour passé. Ce n'est pas une modification du tour à
+  // renotifier aux courtiers : c'est un rangement, propre au courtier acheteur.
+  const setReopened = (value, message) => {
+    const t = currentTour();
+    if (!t) return;
+    t.reopened = value;
+    render();
+    showToast(message, 'success');
+  };
+  const reopenBtn = document.getElementById('btn-reopen-tour');
+  if (reopenBtn) reopenBtn.onclick = () => setReopened(true, 'Tour remis dans les tours à venir.');
+  const archiveBtn = document.getElementById('btn-archive-tour');
+  if (archiveBtn) archiveBtn.onclick = () => setReopened(false, 'Tour reclassé dans les tours passés.');
 
   const changeBuyer = document.getElementById('btn-change-buyer');
   if (changeBuyer) changeBuyer.onclick = () => {
