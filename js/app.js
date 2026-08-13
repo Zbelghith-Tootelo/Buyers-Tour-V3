@@ -77,6 +77,7 @@ const STOP_GLYPHS = {
   sandbox: STOP_ICON_SANDBOX_SVG,
   confirmed: STOP_ICON_CONFIRMED_SVG,
   refused: STOP_ICON_REFUSED_SVG,
+  cancelled: STOP_ICON_REFUSED_SVG,
 };
 function stopGlyph(status) { return STOP_GLYPHS[status] || STOP_ICON_PENDING_SVG; }
 
@@ -550,9 +551,15 @@ const STOP_STATUSES = {
   proposed:  { label: 'Autre créneau proposé', short: 'Contre-proposition', tone: 'warn', action: true },
   refused:   { label: 'Visite refusée', short: 'Refusée', tone: 'danger', action: true },
   noreply:   { label: 'Sans réponse du courtier', short: 'Sans réponse', tone: 'muted', action: true },
+  // Distinct du refus : un refus répond à une demande jamais accordée, une
+  // annulation retire une confirmation qui existait. L'heure était promise,
+  // parfois déjà transmise à l'acheteur — le tour recule d'une case.
+  cancelled: { label: 'Visite annulée par le courtier inscripteur', short: 'Annulée', tone: 'danger', action: true },
 };
 // Ordre du simulateur de démo : le cycle suit le parcours réel d'une demande.
-const STOP_STATUS_CYCLE = ['pending', 'confirmed', 'proposed', 'refused', 'noreply'];
+// L'annulation suit la confirmation, seul état d'où elle a un sens — et le
+// seul d'où l'heure promise existe encore pour être nommée.
+const STOP_STATUS_CYCLE = ['pending', 'confirmed', 'cancelled', 'proposed', 'refused', 'noreply'];
 
 // Le tour n'a pas de champ `status` : il se déduit de ce qui est vrai (les
 // demandes sont parties, l'acheteur a reçu le tour) et de l'état des arrêts.
@@ -881,6 +888,10 @@ function setStopStatus(stop, status) {
   stop.status = status;
   stop.locked = status === 'confirmed';
   if (status !== 'proposed') stop.proposedStart = null;
+  // Une annulation garde l'heure à l'écran alors qu'elle n'engage plus
+  // personne : c'est le trou qu'elle laisse dans la journée que le courtier
+  // doit voir pour le combler. Le reste du tour ne se réorganise pas tout seul.
+  if (status === 'cancelled') return;
   if (status !== 'confirmed') { stop.lockedStart = null; return; }
   if (!stop.lockedStart) {
     const row = computeSchedule(state.draft).find(r => r.stop.id === stop.id);
@@ -1732,6 +1743,15 @@ function renderBuilderScreen() {
             <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
             <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
           </div>`;
+      } else if (st === 'cancelled') {
+        // L'heure était acquise : on la nomme, parce que c'est elle qui est
+        // perdue et que le reste du tour a été bâti autour.
+        answerHtml = `
+          <div class="stop-answer danger">${icon('warning')}
+            <span class="banner-text">Le courtier inscripteur a annulé cette visite${stop.lockedStart ? `, confirmée pour ${stop.lockedStart.replace(':', 'h')}` : ''}.</span>
+            <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
+            <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
+          </div>`;
       } else if (st === 'noreply') {
         answerHtml = `
           <div class="stop-answer muted">${icon('hourglass')}
@@ -1780,16 +1800,26 @@ function renderBuilderScreen() {
       <button class="btn-inline" id="btn-reopen-tour">Le remettre dans les tours à venir</button>
     </div>`);
 
-  const panelStatuses = ['en_cours', 'confirme', 'non_envoye'];
+  // « Partagé » entre dans la liste : un tour peut se dégrader après son envoi
+  // — un courtier annule la veille — et l'acheteur détient alors un tour qui
+  // n'est plus vrai. Sans panneau, ce statut ne disait plus rien après coup.
+  const panelStatuses = ['en_cours', 'confirme', 'non_envoye', 'partage'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
-    <div class="validation-panel ${status}">
+    <div class="validation-panel ${status}${status === 'partage' && tally.confirmed < tally.total ? ' is-stale' : ''}">
       <div class="validation-counts">
         <span class="vcount ok">${tally.confirmed} confirmée${tally.confirmed > 1 ? 's' : ''}</span>
         ${tally.waiting ? `<span class="vcount wait">${tally.waiting} en attente</span>` : ''}
         ${tally.toHandle ? `<span class="vcount act">${tally.toHandle} à traiter</span>` : ''}
         ${tally.sandbox ? `<span class="vcount todo">${tally.sandbox} à envoyer</span>` : ''}
       </div>
-      <p class="validation-help">${tally.sandbox
+      <p class="validation-help">${status === 'partage'
+        // Un tour partagé n'est à jour que si tout y est encore confirmé. Une
+        // visite qui attend une nouvelle réponse compte autant qu'une annulée :
+        // dans les deux cas l'acheteur tient un horaire qui n'est plus vrai.
+        ? (tally.confirmed < tally.total
+          ? `${tally.total - tally.confirmed} visite${tally.total - tally.confirmed > 1 ? 's ne sont' : ' n\'est'} plus confirmée${tally.total - tally.confirmed > 1 ? 's' : ''} depuis l'envoi${buyer ? ` à ${esc(buyer.prenom)}` : ''}. ${buyer ? `${esc(buyer.prenom)} détient` : 'L\'acheteur détient'} un tour qui n'est plus à jour : renvoyez-le-lui une fois ${tally.total - tally.confirmed > 1 ? 'les créneaux réglés' : 'le créneau réglé'}.`
+          : `Le tour a été partagé${buyer ? ` avec ${esc(buyer.prenom)}` : ''}. Toutes les visites tiennent.`)
+        : tally.sandbox
         ? `${tally.sandbox} propriété${tally.sandbox > 1 ? 's' : ''} ${tally.sandbox > 1 ? 'restent' : 'reste'} au bac à sable : ${tally.sandbox > 1 ? 'leurs demandes ne sont' : 'sa demande n\'est'} pas encore partie${tally.sandbox > 1 ? 's' : ''}.`
         : status === 'non_envoye'
           ? `Toutes les visites sont confirmées. ${esc(buyer.prenom)} n'a pas encore reçu le tour.`
@@ -2068,11 +2098,11 @@ function renderVisitRequestModal() {
   // une propriété ajoutée depuis reste au bac à sable jusqu'à son propre envoi.
   const editedStop = editing ? state.draft.stops.find(s => s.id === m.editStopId) : null;
   const sent = !!(editedStop && editedStop.sentAt);
-  // Après un refus, il n'y a plus de demande à modifier : celle qu'on envoie
-  // est une nouvelle, et le bouton doit le dire.
-  const refused = !!(editedStop && effectiveStopStatus(editedStop) === 'refused');
+  // Après un refus ou une annulation, il n'y a plus de demande à modifier :
+  // celle qu'on envoie est une nouvelle, et le bouton doit le dire.
+  const rejected = !!(editedStop && ['refused', 'cancelled'].includes(effectiveStopStatus(editedStop)));
   const saveLabel = !editing ? 'Enregistrer'
-    : refused ? 'Envoyer une nouvelle demande'
+    : rejected ? 'Envoyer une nouvelle demande'
     : sent ? 'Envoyer la modification pour validation'
     : 'Enregistrer la modification';
 
@@ -4025,7 +4055,7 @@ function bindVisitRequestModalEvents() {
     // c'est une nouvelle demande, pas la retouche d'une demande vivante. Le
     // compteur des 48 h redémarre avec elle, sinon la réponse serait déjà en
     // retard à la seconde où elle part.
-    const retryAfterRefusal = !!m.editStopId && stop.status === 'refused';
+    const retryAfterRefusal = !!m.editStopId && ['refused', 'cancelled'].includes(stop.status);
     if (slotChanged || retryAfterRefusal) {
       stop.status = 'pending';
       stop.proposedStart = null;
