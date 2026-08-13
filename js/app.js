@@ -29,10 +29,13 @@ const ICONS = {
   layers: `<path d="M12 3l8.5 4.5L12 12 3.5 7.5 12 3z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   star: { viewBox: '0 0 27 26', content: `<path d="M13.1016 0.5C13.8575 0.5 14.5467 0.933553 14.873 1.61523L17.7061 7.49512L24.0322 8.4375L24.0332 8.43848C24.7731 8.55044 25.3802 9.07198 25.6123 9.78027C25.8454 10.4919 25.6556 11.2766 25.1279 11.8027L20.5322 16.3887L21.623 22.873V22.875C21.7455 23.6167 21.4391 24.3637 20.834 24.8076C20.222 25.2564 19.4148 25.3039 18.7539 24.9521L18.752 24.9502L13.1064 21.9092L7.46094 24.9502L7.45898 24.9521C6.79541 25.3053 5.99013 25.2494 5.38184 24.8096C4.77244 24.3687 4.46771 23.6146 4.58984 22.875V22.874L5.6748 16.3887L1.08008 11.8027C0.550316 11.2744 0.369538 10.4904 0.594727 9.78418C0.822466 9.07009 1.43758 8.55008 2.1748 8.43848L2.17578 8.4375L8.49707 7.49512L11.3311 1.61523L11.332 1.61426C11.6616 0.936913 12.3428 0.500156 13.1016 0.5Z" stroke="currentColor"/>` },
 };
+// Les icônes sont décoratives : le nom d'un bouton vient de son texte visible
+// ou de son aria-label, jamais du dessin. `aria-hidden` évite qu'un lecteur
+// d'écran annonce un graphique sans nom au milieu d'un libellé.
 const icon = (name, cls = '') => {
   const def = ICONS[name];
-  if (typeof def === 'object') return `<svg class="${cls}" viewBox="${def.viewBox}" fill="none">${def.content}</svg>`;
-  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none">${def || ''}</svg>`;
+  if (typeof def === 'object') return `<svg class="${cls}" viewBox="${def.viewBox}" fill="none" aria-hidden="true">${def.content}</svg>`;
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" aria-hidden="true">${def || ''}</svg>`;
 };
 
 /* Tour card glyph: multi-house icon with a fused status badge (provided design asset). */
@@ -1370,8 +1373,8 @@ function renderContactScreen() {
         <div class="buyer-chip">
           <input class="input" value="${esc(selected.prenom + ' ' + selected.nom)}" readonly>
           <div class="input-actions">
-            <button class="select-icon-btn help" data-edit-buyer title="Modifier">${icon('pencil')}</button>
-            <button class="select-icon-btn remove" id="btn-remove-selected-buyer" title="Retirer">${icon('x')}</button>
+            <button class="select-icon-btn help" data-edit-buyer title="Modifier" aria-label="Modifier ce contact">${icon('pencil')}</button>
+            <button class="select-icon-btn remove" id="btn-remove-selected-buyer" title="Retirer" aria-label="Retirer ce contact">${icon('x')}</button>
           </div>
         </div>
       </div>`;
@@ -1473,8 +1476,8 @@ function renderBuyerForm() {
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <label class="field-label" style="margin-bottom:0;">Courriel(s)${state.contactPurpose === 'name' ? ' <span class="field-optional">facultatif pour l\'instant</span>' : ''}</label>
           <div style="display:flex;gap:6px;">
-            <button class="select-icon-btn add" id="bf-add-email" title="Ajouter un courriel">${icon('plus')}</button>
-            <button class="select-icon-btn help" title="Courriel principal pour l'envoi des confirmations">?</button>
+            <button class="select-icon-btn add" id="bf-add-email" title="Ajouter un courriel" aria-label="Ajouter un courriel">${icon('plus')}</button>
+            <button class="select-icon-btn help" title="Courriel principal pour l'envoi des confirmations" aria-label="Aide : à quoi sert le courriel">?</button>
           </div>
         </div>
         ${f.emails.map((val, i) => `
@@ -1487,8 +1490,8 @@ function renderBuyerForm() {
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <label class="field-label" style="margin-bottom:0;">Téléphone(s)</label>
           <div style="display:flex;gap:6px;">
-            <button class="select-icon-btn add" id="bf-add-tel" title="Ajouter un téléphone">${icon('plus')}</button>
-            <button class="select-icon-btn help" title="Format: (514) 000-0000">?</button>
+            <button class="select-icon-btn add" id="bf-add-tel" title="Ajouter un téléphone" aria-label="Ajouter un téléphone">${icon('plus')}</button>
+            <button class="select-icon-btn help" title="Format: (514) 000-0000" aria-label="Aide : format du numéro">?</button>
           </div>
         </div>
         ${f.tels.map((val, i) => `
@@ -1565,7 +1568,7 @@ function renderBuilderScreen() {
         <div class="travel-chip">${icon('car')} <span class="banner-text">${label}${canShareSlot
           ? ` — ${formatKm(slotDistanceKm(prevStop, stop))} seulement entre les deux` : ''}</span>
           ${canShareSlot ? `<button class="btn-inline" data-share-slot="${stop.id}">Même créneau</button>` : ''}
-          <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}">${icon('pencil')}</button></span>
+          <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}" aria-label="${bannerEditTitle}">${icon('pencil')}</button></span>
         </div>`;
     }
 
@@ -1602,7 +1605,7 @@ function renderBuilderScreen() {
         : `<strong>Attention :</strong> arrivée prévue à ${minutesToLabel(conflict.arrival)}, après ${heureDite} de ${minutesToLabel(conflict.confirmed)}.`;
       conflictHtml = `
         <div class="alert-banner warning">${icon('warning')} <span class="banner-text">${text}</span>
-          <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}">${icon('pencil')}</button></span>
+          <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}" aria-label="${bannerEditTitle}">${icon('pencil')}</button></span>
         </div>`;
     }
 
@@ -1670,16 +1673,24 @@ function renderBuilderScreen() {
             <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
                  paragraphe lui vole son bord gauche. Ici il porte son nom quand
                  la place le permet, au lieu d'un cercle muet. -->
+            <!-- Le libellé est masqué en desktop, donc absent de l'arbre
+                 d'accessibilité : sans aria-label le bouton n'aurait aucun nom
+                 sur la moitié des écrans. -->
             <button class="pick-btn${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
               aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
+              aria-label="Choix de l'acheteur — ${esc(stop.address)}"
               title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}<span class="pick-label">Choix de l'acheteur</span></button>
-            <button class="btn-icon" data-edit-stop="${stop.id}" title="Modifier la visite">${icon('pencil')}</button>
-            <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour">${icon('trash')}</button>
+            <button class="btn-icon" data-edit-stop="${stop.id}" title="Modifier la visite" aria-label="Modifier la visite du ${esc(stop.address)}">${icon('pencil')}</button>
+            <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour" aria-label="Retirer ${esc(stop.address)} du tour">${icon('trash')}</button>
             ${st === 'sandbox'
               // Envoyer et rendre compte ne coexistent jamais dans le temps :
               // la troisième place revient à celui des deux qui a un sens ici.
-              ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
-              : `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${!stop.visited ? 'Faire le compte rendu de visite' : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite'}">${icon('star')}</button>`}
+              ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}" aria-label="Envoyer la demande de visite du ${esc(stop.address)} à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
+              : (() => {
+                  const t = !stop.visited ? 'Faire le compte rendu de visite'
+                    : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite';
+                  return `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${t}" aria-label="${t} — ${esc(stop.address)}">${icon('star')}</button>`;
+                })()}
           </div>
         </div>`;
 
@@ -1908,7 +1919,7 @@ function renderEditBuyerModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>Modifier l'acheteur</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Modifier l'acheteur</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
             <label class="field-label">Prénom :</label>
@@ -1922,8 +1933,8 @@ function renderEditBuyerModal() {
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <label class="field-label" style="margin-bottom:0;">Courriel(s)</label>
               <div style="display:flex;gap:6px;">
-                <button class="select-icon-btn add" id="eb-add-email" title="Ajouter un courriel">${icon('plus')}</button>
-                <button class="select-icon-btn help" title="Courriel principal pour l'envoi des confirmations">?</button>
+                <button class="select-icon-btn add" id="eb-add-email" title="Ajouter un courriel" aria-label="Ajouter un courriel">${icon('plus')}</button>
+                <button class="select-icon-btn help" title="Courriel principal pour l'envoi des confirmations" aria-label="Aide : à quoi sert le courriel">?</button>
               </div>
             </div>
             ${f.emails.map((val, i) => `
@@ -1936,8 +1947,8 @@ function renderEditBuyerModal() {
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <label class="field-label" style="margin-bottom:0;">Téléphone(s)</label>
               <div style="display:flex;gap:6px;">
-                <button class="select-icon-btn add" id="eb-add-tel" title="Ajouter un téléphone">${icon('plus')}</button>
-                <button class="select-icon-btn help" title="Format: (514) 000-0000">?</button>
+                <button class="select-icon-btn add" id="eb-add-tel" title="Ajouter un téléphone" aria-label="Ajouter un téléphone">${icon('plus')}</button>
+                <button class="select-icon-btn help" title="Format: (514) 000-0000" aria-label="Aide : format du numéro">?</button>
               </div>
             </div>
             ${f.tels.map((val, i) => `
@@ -1973,7 +1984,7 @@ function renderNewPropertyModal() {
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
         <div class="modal-head vr-head">
-          <button class="vr-back" id="np-back" title="Retour à la recherche">${icon('arrowLeft')}</button>
+          <button class="vr-back" id="np-back" title="Retour à la recherche" aria-label="Retour à la recherche">${icon('arrowLeft')}</button>
           <h2 class="vr-title">Ajouter une propriété inexistante</h2>
           <span class="vr-head-spacer"></span>
         </div>
@@ -2089,7 +2100,7 @@ function renderVisitRequestModal() {
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
         <div class="modal-head vr-head">
-          <button class="vr-back" id="vr-back" title="Retour">${icon('arrowLeft')}</button>
+          <button class="vr-back" id="vr-back" title="Retour" aria-label="Retour">${icon('arrowLeft')}</button>
           <h2 class="vr-title">Demande de visite</h2>
           <span class="vr-head-spacer"></span>
         </div>
@@ -2180,7 +2191,7 @@ function renderSendRequestsModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
-        <div class="modal-head"><h2>Envoyer les demandes de visites</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Envoyer les demandes de visites</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p class="helper-text" style="margin:0 0 14px;">Chaque courtier inscripteur reçoit la demande de sa propriété, avec le créneau que vous avez retenu. Les propriétés décochées restent au bac à sable.</p>
           <div class="send-list">${rows}</div>
@@ -2230,7 +2241,7 @@ function renderOptimizePlanModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
-        <div class="modal-head"><h2>Optimiser le tour</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Optimiser le tour</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="plan-summary">
             <div class="plan-summary-row">
@@ -2277,7 +2288,7 @@ function renderConfirmModal(title, body, confirmId) {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body"><p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;">${esc(body)}</p></div>
         <div class="modal-footer" style="display:flex;gap:10px;">
           <button class="btn btn-danger" id="${confirmId}">Supprimer</button>
@@ -2311,7 +2322,7 @@ function renderConfirmRemoveStopModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>Retirer cette propriété ?</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Retirer cette propriété ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="vr-property" style="padding-bottom:14px;border-bottom:1px solid var(--bordures);margin-bottom:14px;">
             <img class="result-thumb" src="${thumbFor(stop.mls, stop.address)}" alt="">
@@ -2335,7 +2346,7 @@ function renderConfirmLeaveModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>Quitter sans enregistrer ?</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Quitter sans enregistrer ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;margin:0;">
             ${saved
@@ -2364,7 +2375,7 @@ function renderFlagsModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
-        <div class="modal-head"><h2>Feature flags</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Feature flags</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p class="helper-text" style="margin-top:0;">Le Buyer's Tour est développé comme une API autonome. Ces interrupteurs simulent les comportements propres à chaque plateforme sans changer de build.</p>
           <p class="section-label" style="margin-top:18px;">Plateforme</p>
@@ -2525,7 +2536,7 @@ function renderDestinationModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal">
-        <div class="modal-head"><h2>${anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>${anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="dest-tabs">
             ${tabs.map(t => `
@@ -2743,7 +2754,7 @@ function renderEditStopModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>Modifier la pause</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Modifier la pause</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
             <label class="field-label">Durée</label>
