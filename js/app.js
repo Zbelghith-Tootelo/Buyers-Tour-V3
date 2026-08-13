@@ -2700,6 +2700,15 @@ function renderReportScreen() {
       </div>
     </div>
 
+    <!-- Le destinataire n'apparaissait qu'après l'envoi, dans le toast. Or ce
+         formulaire demande un avis sur le prix et une intention d'offre : des
+         informations négociables. Qui les reçoit se dit avant la saisie, pas
+         après (Nielsen #1). -->
+    <div class="info-banner" style="margin-top:16px;">${icon('info')}
+      <span>Ce compte rendu sera transmis à <strong>${esc(courtier)}</strong> et aux vendeurs.
+      Votre acheteur ne le reçoit pas.</span>
+    </div>
+
     <div class="field" style="margin-top:16px;">
       <label class="field-label" style="font-weight:700;">Intérêt global</label>
       ${ratingStarsHtml('interet', draft.interet)}
@@ -2745,12 +2754,16 @@ function renderReportScreen() {
     </div>
 
     <div style="max-width:300px;margin-top:20px;">
-      <button class="btn btn-primary btn-block" id="btn-send-report">Envoyer</button>
+      <!-- Le bouton porte le nom que le toast lui donnera : une action garde
+           son nom d'un bout à l'autre du geste. -->
+      <button class="btn btn-primary btn-block" id="btn-send-report">Envoyer aux vendeurs</button>
       <button class="btn btn-outline btn-block" id="btn-send-report-later" style="margin-top:15px;">Enregistrer pour plus tard</button>
     </div>
 
-    <p class="helper-text" style="margin-top:20px;">Toutes ces informations seront partagées avec les vendeurs.
-      Enregistré pour plus tard, le compte rendu reste dans le tour : vous l'enverrez une fois les visites terminées.</p>`;
+    <!-- Le destinataire est annoncé en tête, avant la saisie. Il reste ici ce
+         qui porte sur le bouton d'à côté, et rien d'autre. -->
+    <p class="helper-text" style="margin-top:20px;">Enregistré pour plus tard, le compte rendu reste dans le tour :
+      vous l'enverrez une fois les visites terminées.</p>`;
 }
 
 // Modifier une pause. Une propriété, elle, ne se modifie que par la modale de
