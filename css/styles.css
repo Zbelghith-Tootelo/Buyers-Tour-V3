@@ -468,6 +468,10 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 /* Les visites sont bien confirmées, mais il reste un geste à faire : liseré
    marine plutôt que vert, pour ne pas signaler « terminé ». */
 .validation-panel.non_envoye { border-left-color: var(--bleu-principal); background: var(--bleu-nav-10); }
+/* Le tour est parti chez l'acheteur : vert tant qu'il tient, ambre dès qu'une
+   réponse l'a changé depuis — l'acheteur détient alors un tour périmé. */
+.validation-panel.partage { border-left-color: var(--succes); background: var(--succes-bg); }
+.validation-panel.partage.is-stale { border-left-color: var(--attention); background: var(--attention-bg); }
 .validation-counts { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .vcount { font-size: 13.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
 .vcount::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
