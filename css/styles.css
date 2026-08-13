@@ -692,6 +692,9 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   display: inline-flex; align-items: center; gap: 4px; vertical-align: baseline;
   background: none; border: none; padding: 0; font: inherit; cursor: pointer;
   border-bottom: 1px dashed var(--bordures);
+  /* Un <button> centre son texte : quand le libellé passe sur deux lignes, la
+     seconde se retrouvait centrée sous la première au lieu de s'aligner. */
+  text-align: left;
 }
 .status-sim svg { width: 11px; height: 11px; color: var(--texte-secondaire); opacity: 0; transition: opacity 120ms ease-out; }
 .status-sim:hover svg, .status-sim:focus-visible svg { opacity: 1; }
@@ -1118,6 +1121,23 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   }
 
   .content { padding: 0 16px 24px; max-width: none; }
+
+  /* La carte d'arrêt gardait la rangée d'actions à droite du texte, comme sur
+     desktop. À 375 px il ne restait que ~190 px de colonne : l'adresse tombait
+     sur quatre lignes et le statut sur quatre autres. Les actions passent sous
+     le texte, qui récupère toute la largeur de la carte. */
+  .stop-card {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .stop-card .stop-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    border-top: 1px solid var(--bordures);
+    padding-top: 10px;
+  }
 
   .mobile-footer {
     display: flex;
