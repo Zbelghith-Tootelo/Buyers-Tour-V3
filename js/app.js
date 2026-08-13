@@ -1705,10 +1705,14 @@ function renderBuilderScreen() {
             <button class="btn-inline ghost" data-keep-request="${stop.id}">Garder ma demande</button>
           </div>`;
       } else if (st === 'refused') {
+        // Un refus porte le plus souvent sur l'heure, pas sur la propriété.
+        // Ne proposer que le retrait forçait à supprimer puis recomposer
+        // l'arrêt pour retenter — en lui faisant perdre sa place dans le tour.
         answerHtml = `
           <div class="stop-answer danger">${icon('warning')}
             <span class="banner-text">Le courtier inscripteur a refusé cette visite.</span>
-            <button class="btn-inline" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
+            <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
+            <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
           </div>`;
       } else if (st === 'noreply') {
         answerHtml = `
@@ -2046,7 +2050,11 @@ function renderVisitRequestModal() {
   // une propriété ajoutée depuis reste au bac à sable jusqu'à son propre envoi.
   const editedStop = editing ? state.draft.stops.find(s => s.id === m.editStopId) : null;
   const sent = !!(editedStop && editedStop.sentAt);
+  // Après un refus, il n'y a plus de demande à modifier : celle qu'on envoie
+  // est une nouvelle, et le bouton doit le dire.
+  const refused = !!(editedStop && effectiveStopStatus(editedStop) === 'refused');
   const saveLabel = !editing ? 'Enregistrer'
+    : refused ? 'Envoyer une nouvelle demande'
     : sent ? 'Envoyer la modification pour validation'
     : 'Enregistrer la modification';
 
@@ -3167,6 +3175,13 @@ function bindBuilderEvents() {
         setStopStatus(stop, 'pending');
         stop.relancedAt = null;
         stop.sentAt = Date.now() - RELANCE_DELAY_MS - 1000;
+      } else if (next === 'pending') {
+        // Sortir de « Sans réponse » demande de ramener l'envoi dans le délai :
+        // sans ça, « en attente » se retraduit aussitôt en « sans réponse » et
+        // le simulateur tourne en rond sur ce seul état.
+        setStopStatus(stop, 'pending');
+        stop.sentAt = Date.now();
+        stop.relancedAt = null;
       } else {
         setStopStatus(stop, next);
       }
@@ -3214,6 +3229,14 @@ function bindBuilderEvents() {
       if (!stop) return;
       state.modal = { type: 'confirmRemoveStop', stopId: stop.id };
       render();
+    };
+  });
+  // Retenter après un refus : même formulaire que la modification, préréglé sur
+  // le créneau refusé — c'est celui qu'on vient changer.
+  document.querySelectorAll('[data-retry-stop]').forEach(el => {
+    el.onclick = () => {
+      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-retry-stop'));
+      if (stop) openVisitEditor(stop);
     };
   });
   document.querySelectorAll('[data-relance-stop]').forEach(el => {
@@ -3892,10 +3915,16 @@ function bindVisitRequestModalEvents() {
     stop.duration = m.duration;
     stop.comment = m.comment;
     stop.callback = m.callback;
-    if (slotChanged) {
+    // Renvoyer après un refus repart toujours en attente, même à créneau égal :
+    // c'est une nouvelle demande, pas la retouche d'une demande vivante. Le
+    // compteur des 48 h redémarre avec elle, sinon la réponse serait déjà en
+    // retard à la seconde où elle part.
+    const retryAfterRefusal = !!m.editStopId && stop.status === 'refused';
+    if (slotChanged || retryAfterRefusal) {
       stop.status = 'pending';
       stop.proposedStart = null;
     }
+    if (retryAfterRefusal) stop.relancedAt = Date.now();
     const insertedBefore = m.editStopId ? null : addStopToDraft(stop);
     if (dateApplies) state.draft.date = m.date;
     // Sur un tour déjà parti, ce bouton envoie : la demande est repartie chez le
