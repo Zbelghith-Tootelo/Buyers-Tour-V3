@@ -539,6 +539,28 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .plan-unchanged { color: var(--texte-secondaire); font-size: 12px; }
 
 /* Propriété hors catalogue : la demande part par courriel, sans créer de fiche. */
+/* Crochet « choix de l'acheteur ». Il qualifie l'adresse, il se pose donc
+   contre elle — pas dans la rangée d'actions, déjà pleine, et pas en pastille
+   colorée de plus : la carte porte déjà le vert de la confirmation et l'ambre
+   de l'attente. Ceci dit d'où vient la propriété, pas où elle en est, d'où le
+   bleu d'action qui n'entre en concurrence avec aucun statut. */
+.pick-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; margin-right: 6px; vertical-align: -4px;
+  border: 1.5px solid var(--bordures); border-radius: 50%;
+  background: var(--blanc); color: var(--bordures); cursor: pointer;
+  transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
+}
+.pick-toggle svg { width: 12px; height: 12px; }
+/* Le dessin fait 20px pour ne pas écraser l'adresse, la cible tactile en fait
+   44 : l'un est une question de composition, l'autre de doigt (HIG / WCAG 2.2). */
+.pick-toggle { position: relative; }
+.pick-toggle::after { content: ''; position: absolute; inset: -12px; }
+.pick-toggle:hover { border-color: var(--bleu-secondaire); color: var(--bleu-action-30); }
+.pick-toggle:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+.pick-toggle.is-on { background: var(--bleu-secondaire); border-color: var(--bleu-secondaire); color: var(--blanc); }
+.pick-toggle.is-on:hover { background: var(--bleu-action-dark); border-color: var(--bleu-action-dark); color: var(--blanc); }
+
 .ext-chip {
   display: inline-block; white-space: nowrap; flex-shrink: 0;
   font-size: 10.5px; font-weight: 700; padding: 2px 7px;

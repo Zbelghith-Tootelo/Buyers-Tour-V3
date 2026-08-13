@@ -519,6 +519,9 @@ function makeStop(address, mls, opts = {}) {
     proposedStart: opts.proposedStart || null,  // créneau suggéré par le courtier inscripteur
     external: opts.external || false,           // arrêt hors catalogue, envoyé par courriel
     visited: opts.visited || false,
+    // Provenance, pas état : cette propriété vient de l'acheteur, ou c'est le
+    // courtier qui la propose. Indépendant du régime de l'arrêt.
+    buyerPick: opts.buyerPick || false,
     // Porte à lui seul le régime de l'arrêt : null = bac à sable, horodaté =
     // demande partie chez le courtier inscripteur.
     sentAt: opts.sentAt || null,
@@ -657,9 +660,9 @@ function seedTours() {
     {
       id: 't2', buyerId: 'b2', date: todayPlus(2), time: '14:30', sentAt: Date.now() - 90000,
       stops: [
-        makeStop('500 Rue d\'Avaugour, Boucherville, QC J4B 5E7', '18234671', { status: 'confirmed', lockedStart: '14:30', sentAt: Date.now() - 100000 }),
+        makeStop('500 Rue d\'Avaugour, Boucherville, QC J4B 5E7', '18234671', { status: 'confirmed', lockedStart: '14:30', sentAt: Date.now() - 100000, buyerPick: true }),
         makeStop('123 Avenue des Étoiles, Montréal, QC H3C 1A2', '18234733', { status: 'pending', sentAt: Date.now() - 100000 }),
-        makeStop('44 Rue du Parc, Brossard, QC J4W 2K3', '18235634', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000 }),
+        makeStop('44 Rue du Parc, Brossard, QC J4W 2K3', '18235634', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000, buyerPick: true }),
       ],
     },
     {
@@ -1640,7 +1643,11 @@ function renderBuilderScreen() {
             ${stopGlyph(st)}
           </div>
           <div class="stop-body">
-            <p class="stop-address">${esc(stop.address)}${stop.external ? ` <span class="ext-chip" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>` : ''}</p>
+            <p class="stop-address">
+              <button class="pick-toggle${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
+                aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
+                title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}</button>
+              ${esc(stop.address)}${stop.external ? ` <span class="ext-chip" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>` : ''}</p>
             <p class="stop-meta">Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}${statusHtml}${visitedHtml}</p>
           </div>
           <div class="stop-actions">
@@ -3191,6 +3198,19 @@ function bindBuilderEvents() {
     state.modal = { type: 'sendRequests' };
     render();
   };
+
+  // Marquer une propriété comme venant de l'acheteur. C'est une annotation
+  // interne au courtier acheteur : le courtier inscripteur n'en sait rien et n'a
+  // rien à revalider, donc on persiste sans marquer le tour modifié.
+  document.querySelectorAll('[data-toggle-pick]').forEach(el => {
+    el.onclick = () => {
+      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-toggle-pick'));
+      if (!stop) return;
+      stop.buyerPick = !stop.buyerPick;
+      persistAnswer();
+      render();
+    };
+  });
 
   // Envoi d'une seule demande, depuis l'arrêt lui-même.
   document.querySelectorAll('[data-send-stop]').forEach(el => {
