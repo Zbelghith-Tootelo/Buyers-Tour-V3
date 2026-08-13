@@ -1203,11 +1203,17 @@ function renderSidebarNav() {
     const active = item.id === 'tours';
     // Active "Tour de visites" uses the dedicated white glyph from the Figma sidebar.
     const iconSrc = active ? 'assets/menu/tour-white.svg' : item.img;
+    // Le décor de la plateforme reste, badges compris : c'est ce qui rend la
+    // démo crédible. Mais un badge promet du contenu, et ces sections n'en ont
+    // pas. La réserve se dit avant le clic, pas seulement dans le toast après.
+    const hors = !active ? ' — section absente de ce prototype' : '';
     return `
-    <a href="#" class="nav-item ${active ? 'active' : ''}" data-nav="${item.id}">
+    <a href="#" class="nav-item ${active ? 'active' : ''}" data-nav="${item.id}"
+      ${active ? 'aria-current="page"' : `title="${esc(item.label)}${hors}"`}
+      aria-label="${esc(item.label)}${item.badge ? `, ${item.badge} en attente` : ''}${hors}">
       <span class="nav-icon"><img src="${iconSrc}" alt=""></span>
       ${esc(item.label)}
-      ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ''}
+      ${item.badge ? `<span class="nav-badge" aria-hidden="true">${item.badge}</span>` : ''}
     </a>`;
   }).join('');
 }
@@ -1274,9 +1280,11 @@ function renderMenuScreen() {
   return `
     <div class="menu-grid">
       ${NAV_ITEMS.map(item => `
-        <a href="#" class="menu-card ${item.id === 'tours' ? 'is-current' : ''}" data-nav="${item.id}">
+        <a href="#" class="menu-card ${item.id === 'tours' ? 'is-current' : ''}" data-nav="${item.id}"
+          ${item.id === 'tours' ? 'aria-current="page"' : 'title="Section absente de ce prototype"'}
+          aria-label="${esc(item.label)}${item.badge ? `, ${item.badge} en attente` : ''}${item.id === 'tours' ? '' : ' — section absente de ce prototype'}">
           ${item.id === 'tours' ? '<span class="menu-card-clip"><span class="menu-ribbon">Nouveau</span></span>' : ''}
-          ${item.badge ? `<span class="nav-badge menu-card-badge">${item.badge}</span>` : ''}
+          ${item.badge ? `<span class="nav-badge menu-card-badge" aria-hidden="true">${item.badge}</span>` : ''}
           <span class="menu-card-icon"><img src="${item.img}" alt=""></span>
           <span class="menu-card-label">${esc(item.label)}</span>
         </a>
@@ -1289,7 +1297,12 @@ function renderMenuScreen() {
 
 function renderListScreen() {
   const q = state.listSearch.trim().toLowerCase();
-  let tours = state.tours.filter(t => (state.listTab === 'upcoming' ? !tourIsCompleted(t) : tourIsCompleted(t)));
+  const inTab = state.tours.filter(t => (state.listTab === 'upcoming' ? !tourIsCompleted(t) : tourIsCompleted(t)));
+  let tours = inTab;
+  // La recherche porte sur un contact : un tour sans acheteur n'a rien à quoi
+  // se comparer et disparaît. On le dira dans l'écran vide plutôt que de
+  // laisser croire qu'il n'existe pas.
+  const anonymes = inTab.filter(t => !t.buyerId).length;
   if (q) {
     tours = tours.filter(t => {
       const b = state.buyers.find(b => b.id === t.buyerId);
@@ -1306,7 +1319,11 @@ function renderListScreen() {
     listHtml = `
       <div class="empty-state">
         <p>${q ? 'Aucun tour ne correspond à votre recherche.' : (state.listTab === 'upcoming' ? 'Aucun tour de visites à venir.' : 'Aucun tour de visites passé.')}</p>
-        <p class="empty-sub">${q ? 'Essayez un autre nom.' : 'Créez votre premier tour pour commencer.'}</p>
+        <p class="empty-sub">${!q
+          ? 'Créez votre premier tour pour commencer.'
+          : anonymes
+            ? `La recherche porte sur le nom de l'acheteur. ${anonymes} tour${anonymes > 1 ? 's n\'en ont' : ' n\'en a'} pas encore : effacez la recherche pour ${anonymes > 1 ? 'les' : 'le'} retrouver.`
+            : 'Essayez un autre nom.'}</p>
       </div>`;
   } else {
     listHtml = Object.keys(groups).sort().map(date => {
