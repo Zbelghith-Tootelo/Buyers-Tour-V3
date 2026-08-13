@@ -322,6 +322,31 @@ const osrmLegKm = new Map();      // "from>to" -> driving km
 const coordKey = c => `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
 const legKey = (a, b) => `${coordKey(a)}>${coordKey(b)}`;
 
+/* ----- Point de départ -----
+   Le tour ne commence pas à la première propriété : il commence là où le
+   courtier se trouve. Sans ce point, la carte cache le premier trajet — souvent
+   le plus long — et l'optimisation ne peut pas décider par quelle propriété
+   commencer, faute de savoir d'où l'on part.
+
+   Position simulée : le prototype ne demande pas l'autorisation de
+   géolocalisation du navigateur. Elle a la forme d'un arrêt pour que tout le
+   reste — coordsFor, routage, distances, tracé — la traite sans cas
+   particulier. */
+const TOUR_START = {
+  id: 'depart',
+  type: 'start',
+  label: 'Mon point de départ',
+  address: '1250 Boulevard René-Lévesque Ouest, Montréal, QC H3B 4W8',
+  lat: 45.4966,
+  lng: -73.5710,
+};
+
+// Les points du trajet, départ compris. Sous une propriété il n'y a pas de
+// trajet à tracer, donc rien à préfixer.
+function routePoints(props) {
+  return props.length ? [TOUR_START, ...props] : [];
+}
+
 function routeSignature(props) {
   return props.map(s => coordKey(coordsFor(s))).join(';');
 }
@@ -407,15 +432,21 @@ function normalizeParallel(draft) {
 function optimizeByGeography(props) {
   if (props.length < 2) return props.slice();
   const remaining = props.slice();
-  const route = [remaining.shift()];
+  const route = [];
+  // On part du point de départ du courtier, donc la première visite se choisit
+  // comme les autres. Auparavant elle restait l'ancre du tour, faute de savoir
+  // d'où l'on venait : le trajet le plus long de la journée échappait alors au
+  // calcul.
+  let from = coordsFor(TOUR_START);
   while (remaining.length) {
-    const from = coordsFor(route[route.length - 1]);
     let bestIdx = 0, bestKm = Infinity;
     remaining.forEach((s, i) => {
       const km = haversineKm(from, coordsFor(s));
       if (km < bestKm) { bestKm = km; bestIdx = i; }
     });
-    route.push(remaining.splice(bestIdx, 1)[0]);
+    const next = remaining.splice(bestIdx, 1)[0];
+    route.push(next);
+    from = coordsFor(next);
   }
   return route;
 }
@@ -423,9 +454,12 @@ function optimizeByGeography(props) {
 // Total driving distance and time along the tour, in order.
 function routeTotals(stops) {
   const props = stops.filter(s => s.type === 'property');
+  // Le premier trajet — du point de départ à la première visite — compte comme
+  // les autres : c'est souvent le plus long de la journée.
+  const pts = routePoints(props);
   let km = 0, min = 0;
-  for (let i = 1; i < props.length; i++) {
-    const a = coordsFor(props[i - 1]), b = coordsFor(props[i]);
+  for (let i = 1; i < pts.length; i++) {
+    const a = coordsFor(pts[i - 1]), b = coordsFor(pts[i]);
     km += geoTravelKm(a, b);
     min += geoTravelMinutes(a, b);
   }
@@ -1476,6 +1510,23 @@ function renderBuilderScreen() {
   const tally = validationTally(liveTour);
   const bannerEditTitle = 'Insérer une pause, un arrêt ou une propriété à cet endroit du tour';
 
+  // Heure à laquelle il faut partir pour être à l'heure à la première visite.
+  // Purement informatif : les heures des visites sont des engagements pris
+  // auprès des courtiers inscripteurs, le trajet initial ne les décale pas.
+  const firstProp = rows.find(r => r.stop.type === 'property');
+  const departureHtml = !firstProp ? '' : (() => {
+    const trajet = geoTravelMinutes(coordsFor(TOUR_START), coordsFor(firstProp.stop));
+    return `
+      <div class="departure-note">
+        <span class="departure-icon">${icon('car')}</span>
+        <span class="departure-text">
+          <!-- Sa propre adresse : le courtier n'a pas besoin du code postal. -->
+          <strong>Départ vers ${minutesToLabel(firstProp.start - trajet)}</strong> de ${esc(TOUR_START.address.split(',')[0])}
+          <span class="dot">•</span> ${trajet} min jusqu'à la première visite
+        </span>
+      </div>`;
+  })();
+
   const stopsHtml = draft.stops.length === 0 ? `
     <div class="empty-state" style="padding:36px 20px;">
       <p>Aucune destination ajoutée pour l'instant.</p>
@@ -1705,6 +1756,7 @@ function renderBuilderScreen() {
       <button class="btn btn-outline" id="btn-show-map" ${draft.stops.length === 0 ? 'disabled' : ''}>Afficher sur la carte</button>
     </div>
 
+    ${departureHtml}
     <div>${stopsHtml}</div>
 
 
@@ -2517,8 +2569,8 @@ function renderMapScreen() {
   // marks the signature 'loading' synchronously, before its first await, so the
   // status read just below is accurate on the very first paint.
   const props = draft.stops.filter(s => s.type === 'property');
-  ensureRouteGeometry(props);
-  const routeStatus = (routeGeometry.get(routeSignature(props)) || {}).status;
+  ensureRouteGeometry(routePoints(props));
+  const routeStatus = (routeGeometry.get(routeSignature(routePoints(props))) || {}).status;
 
   return `
     <div id="leaflet-map" class="tour-map"></div>
@@ -3271,18 +3323,21 @@ function buildTourMap() {
     attribution: '&copy; OpenStreetMap',
   }).addTo(map);
 
-  const latlngs = props.map(s => { const c = coordsFor(s); return [c.lat, c.lng]; });
+  // Le tracé part du point de départ : le premier segment est celui qui mène à
+  // la première visite, pas celui qui relie les deux premières propriétés.
+  const pts = routePoints(props);
+  const latlngs = pts.map(s => { const c = coordsFor(s); return [c.lat, c.lng]; });
 
   // One polyline per leg rather than a single line, so each segment carries its
   // own colour and its travel time label is unambiguously tied to it.
-  const legCount = props.length - 1;
+  const legCount = Math.max(0, pts.length - 1);
 
   // Road-following geometry when OSRM has answered, tracé simulé sinon.
-  const routed = routeGeometry.get(routeSignature(props));
+  const routed = routeGeometry.get(routeSignature(pts));
   const isRouted = !!(routed && routed.status === 'ok');
   const legPath = (i) => {
     if (isRouted && routed.legs[i] && routed.legs[i].length > 1) return routed.legs[i];
-    return mockRoadPath(coordsFor(props[i]), coordsFor(props[i + 1]));
+    return mockRoadPath(coordsFor(pts[i]), coordsFor(pts[i + 1]));
   };
 
   // Halo puis gainage blanc sous chaque segment : sur des tuiles chargées, une
@@ -3300,7 +3355,7 @@ function buildTourMap() {
   }
 
   for (let i = 0; i < legCount; i++) {
-    const a = coordsFor(props[i]), b = coordsFor(props[i + 1]);
+    const a = coordsFor(pts[i]), b = coordsFor(pts[i + 1]);
     const color = legColor(i, legCount);
     const path = legPath(i);
     L.polyline(path, {
@@ -3339,13 +3394,26 @@ function buildTourMap() {
     }).addTo(map);
   }
 
+  // Le départ n'est pas une visite : il ne prend pas de numéro. Losange vert
+  // contre pastilles rondes marine — la forme distingue avant la couleur.
+  if (props.length) {
+    L.marker([TOUR_START.lat, TOUR_START.lng], {
+      title: TOUR_START.label,
+      icon: L.divIcon({
+        className: 'tour-pin-wrap',
+        html: `<span class="tour-pin is-start" title="${esc(TOUR_START.label)}">${icon('car')}</span>`,
+        iconSize: [28, 28], iconAnchor: [14, 14],
+      }),
+    }).addTo(map).bindPopup(`<strong>${esc(TOUR_START.label)}</strong><br>${esc(TOUR_START.address)}`);
+  }
+
   props.forEach((s, i) => {
     const c = coordsFor(s);
     L.marker([c.lat, c.lng], {
       title: s.address,
       icon: L.divIcon({
         className: 'tour-pin-wrap',
-        html: `<span class="tour-pin ${i === 0 ? 'is-start' : ''}">${i + 1}</span>`,
+        html: `<span class="tour-pin">${i + 1}</span>`,
         iconSize: [28, 28], iconAnchor: [14, 14],
       }),
     }).addTo(map).bindPopup(`<strong>${esc(s.address)}</strong>`);
