@@ -1613,8 +1613,10 @@ function renderBuilderScreen() {
       const stMeta = STOP_STATUSES[st];
       // En bac à sable il n'y a pas de libellé à écrire : la ligne s'arrête à
       // l'heure de visite.
+      // La puce voyage avec le libellé : sur mobile la ligne se casse, et une
+      // puce seule en début de ligne se lit comme une liste à puces.
       const statusLabel = !stMeta.label ? '' :
-        ` <span class="dot">•</span> <span class="status-${stMeta.tone}">${esc(stMeta.label)}${st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : ''}</span>`;
+        ` <span class="meta-part"><span class="dot">•</span> <span class="status-${stMeta.tone}">${esc(stMeta.label)}${st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : ''}</span></span>`;
       // The simulate control sits on the status itself rather than adding a
       // fourth icon to the action row: it acts on the thing it changes, and the
       // row is already carrying three buttons.
