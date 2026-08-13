@@ -1265,6 +1265,7 @@ function render() {
   document.body.dataset.screen = state.screen;
   renderModal();
   bindEvents();
+  syncModalFocus();
 }
 
 /* ----- Screen: mobile menu grid ----- */
@@ -1387,15 +1388,15 @@ function renderContactScreen() {
           ${icon('search')}
         </div>
         ${results.length ? `<div class="panel" style="padding:6px 10px;">${results.map(b => `
-          <div class="result-row" data-select-buyer="${b.id}">
+          <button type="button" class="result-row" data-select-buyer="${b.id}">
             <div class="result-address">${esc(b.prenom + ' ' + b.nom)}</div>
             <div class="tour-card-chevron">${icon('chevronRight')}</div>
-          </div>`).join('')}</div>` : ''}
+          </button>`).join('')}</div>` : ''}
       </div>
-      <div class="link-row" id="btn-toggle-buyer-form">
+      <button type="button" class="link-row" id="btn-toggle-buyer-form">
         <span>Créer un nouvel acheteur</span>
         ${icon('chevronRight')}
-      </div>`;
+      </button>`;
   }
 
   const formBlock = state.showBuyerForm ? renderBuyerForm() : '';
@@ -1735,10 +1736,10 @@ function renderBuilderScreen() {
   const buyerField = buyer ? `
     <div class="field">
       <label class="field-label">Nom de l'acheteur</label>
-      <div class="readonly-chip" id="btn-change-buyer">
+      <button type="button" class="readonly-chip" id="btn-change-buyer">
         ${esc(buyer.prenom + ' ' + buyer.nom)}
         ${icon('chevronRight')}
-      </div>
+      </button>
     </div>` : `
     <div class="field">
       <label class="field-label">Nom de l'acheteur</label>
@@ -1922,8 +1923,8 @@ function renderEditBuyerModal() {
   const f = state.editBuyerDraft;
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-head"><h2>Modifier l'acheteur</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Modifier l'acheteur</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
             <label class="field-label">Prénom :</label>
@@ -1986,10 +1987,10 @@ function renderNewPropertyModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
         <div class="modal-head vr-head">
           <button class="vr-back" id="np-back" title="Retour à la recherche" aria-label="Retour à la recherche">${icon('arrowLeft')}</button>
-          <h2 class="vr-title">Ajouter une propriété inexistante</h2>
+          <h2 class="vr-title" id="modal-title">Ajouter une propriété inexistante</h2>
           <span class="vr-head-spacer"></span>
         </div>
         <div class="modal-body">
@@ -2106,10 +2107,10 @@ function renderVisitRequestModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
         <div class="modal-head vr-head">
           <button class="vr-back" id="vr-back" title="Retour" aria-label="Retour">${icon('arrowLeft')}</button>
-          <h2 class="vr-title">Demande de visite</h2>
+          <h2 class="vr-title" id="modal-title">Demande de visite</h2>
           <span class="vr-head-spacer"></span>
         </div>
         <div class="modal-body">
@@ -2198,8 +2199,8 @@ function renderSendRequestsModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
-        <div class="modal-head"><h2>Envoyer les demandes de visites</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Envoyer les demandes de visites</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p class="helper-text" style="margin:0 0 14px;">Chaque courtier inscripteur reçoit la demande de sa propriété, avec le créneau que vous avez retenu. Les propriétés décochées restent au bac à sable.</p>
           <div class="send-list">${rows}</div>
@@ -2222,9 +2223,9 @@ function renderSendRequestsModal() {
 function renderConfirmSendUpdateModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
         <div class="modal-body" style="padding-top:24px;">
-          <h2 style="font-size:17px;text-align:center;color:var(--bleu-principal);margin:0 0 18px;">Envoyer la mise à jour à</h2>
+          <h2 id="modal-title" style="font-size:17px;text-align:center;color:var(--bleu-principal);margin:0 0 18px;">Envoyer la mise à jour à</h2>
           <div style="display:flex;flex-direction:column;gap:12px;">
             <button class="btn btn-primary btn-block" id="btn-send-update-broker-buyer">Courtier et acheteur</button>
             <button class="btn btn-primary btn-block" id="btn-send-update-broker-only">Courtier uniquement</button>
@@ -2248,8 +2249,8 @@ function renderOptimizePlanModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
-        <div class="modal-head"><h2>Optimiser le tour</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Optimiser le tour</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="plan-summary">
             <div class="plan-summary-row">
@@ -2295,8 +2296,8 @@ function renderOptimizePlanModal() {
 function renderConfirmModal(title, body, confirmId) {
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-head"><h2>${esc(title)}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body"><p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;">${esc(body)}</p></div>
         <div class="modal-footer" style="display:flex;gap:10px;">
           <button class="btn btn-danger" id="${confirmId}">Supprimer</button>
@@ -2329,8 +2330,8 @@ function renderConfirmRemoveStopModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-head"><h2>Retirer cette propriété ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Retirer cette propriété ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="vr-property" style="padding-bottom:14px;border-bottom:1px solid var(--bordures);margin-bottom:14px;">
             <img class="result-thumb" src="${thumbFor(stop.mls, stop.address)}" alt="">
@@ -2353,8 +2354,8 @@ function renderConfirmLeaveModal() {
   const saved = !!state.editingTourId;
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-head"><h2>Quitter sans enregistrer ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Quitter sans enregistrer ?</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;margin:0;">
             ${saved
@@ -2382,8 +2383,8 @@ function renderFlagsModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
-        <div class="modal-head"><h2>Feature flags</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Feature flags</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <p class="helper-text" style="margin-top:0;">Le Buyer's Tour est développé comme une API autonome. Ces interrupteurs simulent les comportements propres à chaque plateforme sans changer de build.</p>
           <p class="section-label" style="margin-top:18px;">Plateforme</p>
@@ -2543,15 +2544,15 @@ function renderDestinationModal() {
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal">
-        <div class="modal-head"><h2>${anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">${anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
-          <div class="dest-tabs">
+          <div class="dest-tabs" role="tablist">
             ${tabs.map(t => `
-              <div class="dest-tab ${tab === t.id ? 'active' : ''}" data-dest-tab="${t.id}">
+              <button type="button" role="tab" aria-selected="${tab === t.id}" class="dest-tab ${tab === t.id ? 'active' : ''}" data-dest-tab="${t.id}">
                 ${icon(t.icon)} ${esc(t.label)}
                 ${t.id === 'cart' && mlsCart.length ? `<span class="tab-badge">${mlsCart.length}</span>` : ''}
-              </div>`).join('')}
+              </button>`).join('')}
           </div>
           ${insertHint}
           ${body}
@@ -2577,14 +2578,14 @@ function resultRow(p, addedMls) {
   // The whole row is the click target and toggles the selection:
   // one click adds the property to the tour, a second click removes it.
   return `
-    <div class="result-row ${already ? 'is-added' : ''}" data-toggle-property="${p.mls}">
+    <button type="button" class="result-row ${already ? 'is-added' : ''}" data-toggle-property="${p.mls}" aria-pressed="${already}">
       <img class="result-thumb" src="${thumbFor(p.mls, p.address)}" alt="">
 
       <div class="result-address">${esc(p.address)}</div>
       <span class="result-add-btn ${already ? 'added' : ''}">
         ${icon(already ? 'check' : 'plus')}
       </span>
-    </div>`;
+    </button>`;
 }
 
 // Adresse hors catalogue : pas de fiche, donc pas de vignette ni de courtier
@@ -2761,8 +2762,8 @@ function renderEditStopModal() {
   if (!stop || stop.type !== 'pause') return '';
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-head"><h2>Modifier la pause</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Modifier la pause</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
             <label class="field-label">Durée</label>
@@ -3636,6 +3637,76 @@ function bindDragAndDrop() {
 
 /* ----- Modal events ----- */
 
+/* ----- Focus des modales -----
+   ESC et le clic sur le fond fermaient déjà ; il manquait le clavier. Sans
+   piège, Tab sortait de la modale et parcourait la page derrière l'overlay :
+   une page qu'on ne voit pas et qu'on ne peut pas actionner (WCAG 2.4.3). */
+const FOCUSABLE_SEL = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusablesIn(root) {
+  return [...root.querySelectorAll(FOCUSABLE_SEL)].filter(el => el.offsetParent !== null);
+}
+
+// L'identité de la modale ouverte. Le rendu étant intégral à chaque frappe, il
+// faut distinguer « une autre modale s'ouvre » de « la même se redessine » :
+// sans ça, le focus retournerait au premier champ à chaque caractère tapé.
+let modalFocusKey = null;
+function modalKey() {
+  const m = state.modal;
+  return m ? `${m.type}:${m.stopId || m.editStopId || m.mls || m.address || ''}` : null;
+}
+
+function trapModalFocus(e) {
+  if (e.key !== 'Tab' || !state.modal) return;
+  const modal = document.querySelector('#modal-overlay .modal');
+  if (!modal) return;
+  const items = focusablesIn(modal);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (!modal.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+// Le focus entre dans la modale à son ouverture, et revient à son point de
+// départ à la fermeture — sans quoi il repart en haut de page et le courtier
+// doit refaire tout le chemin au clavier.
+let modalReturnFocus = null;
+function syncModalFocus() {
+  const key = modalKey();
+  if (key === modalFocusKey) return;
+  const opening = !modalFocusKey && key;
+  const closing = modalFocusKey && !key;
+  modalFocusKey = key;
+
+  if (opening) modalReturnFocus = describeFocus(document.activeElement);
+  if (closing) { restoreFocus(modalReturnFocus); modalReturnFocus = null; return; }
+  if (!key) return;
+
+  const modal = document.querySelector('#modal-overlay .modal');
+  if (!modal) return;
+  const items = focusablesIn(modal);
+  (items[0] || modal).focus();
+}
+
+// Le rendu détruit le DOM : on retient de quoi retrouver le déclencheur, pas
+// le nœud lui-même.
+function describeFocus(el) {
+  if (!el || el === document.body) return null;
+  if (el.id) return `#${CSS.escape(el.id)}`;
+  for (const attr of el.getAttributeNames()) {
+    if (attr.startsWith('data-')) return `[${attr}="${CSS.escape(el.getAttribute(attr))}"]`;
+  }
+  return null;
+}
+
+function restoreFocus(sel) {
+  if (!sel) return;
+  const el = document.querySelector(sel);
+  if (el) el.focus();
+}
+
 function closeModal() { state.modal = null; state.insertBeforeId = null; state.pendingLeave = null; render(); }
 
 function bindModalEvents() {
@@ -3648,6 +3719,7 @@ function bindModalEvents() {
   if (cancelBtn) cancelBtn.onclick = closeModal;
 
   document.addEventListener('keydown', escHandler);
+  document.addEventListener('keydown', trapModalFocus);
 
   if (state.modal.type === 'flags') {
     document.querySelectorAll('[data-platform]').forEach(el => {
@@ -3747,7 +3819,11 @@ function bindModalEvents() {
 }
 
 function escHandler(e) {
-  if (e.key === 'Escape' && state.modal) { closeModal(); document.removeEventListener('keydown', escHandler); }
+  if (e.key === 'Escape' && state.modal) {
+    closeModal();
+    document.removeEventListener('keydown', escHandler);
+    document.removeEventListener('keydown', trapModalFocus);
+  }
 }
 
 function bindEditBuyerModalEvents() {

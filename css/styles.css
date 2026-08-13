@@ -577,6 +577,22 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .buyer-chip { position: relative; }
 .buyer-chip .input { font-weight: 600; padding-right: 84px; cursor: default; background: var(--blanc); }
 
+/* Ces rangées sont maintenant des <button> : elles étaient des <div> munis d'un
+   gestionnaire de clic, donc hors d'atteinte au clavier (WCAG 2.1.1). Le
+   navigateur leur impose sa police, sa bordure et son centrage — on les remet
+   dans l'axe du reste. */
+.link-row, .result-row, .dest-tab, button.readonly-chip {
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  background: none;
+}
+.link-row, .result-row { color: inherit; }
+.link-row:focus-visible, .result-row:focus-visible, .dest-tab:focus-visible, button.readonly-chip:focus-visible {
+  outline: 2px solid var(--bleu-secondaire);
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
+}
 .link-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); color: var(--bleu-secondaire); font-weight: 600; font-size: 14.5px; cursor: pointer; margin-top: -4px; margin-bottom: 20px; }
 .link-row:hover { background: var(--bleu-action-10); }
 .link-row svg { width: 16px; height: 16px; }
@@ -771,7 +787,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .modal-footer { padding: 0 24px 24px; }
 
 .dest-tabs { display: flex; border-bottom: 1px solid var(--bordures); margin-bottom: 16px; gap: 4px; overflow-x: auto; }
-.dest-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--texte-secondaire); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.dest-tab { border: 0; position: relative; display: flex; align-items: center; gap: 6px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--texte-secondaire); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
 .dest-tab svg { width: 15px; height: 15px; }
 .dest-tab.active { color: var(--bleu-principal); border-color: var(--bleu-principal); }
 .dest-tab .tab-badge {
@@ -794,7 +810,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .insert-hint svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
 .insert-hint strong { font-weight: 700; }
 
-.result-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--bordures); cursor: pointer; }
+.result-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--bordures); cursor: pointer; }
 .result-row:hover { background: var(--neutre-surface); margin: 0 -8px; padding: 12px 8px; border-radius: var(--radius-md); }
 .result-row:last-child { border-bottom: none; }
 .result-thumb { width: 77px; height: 50px; border-radius: var(--radius-lg); flex-shrink: 0; object-fit: cover; display: block; }
