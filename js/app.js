@@ -1611,33 +1611,36 @@ function renderBuilderScreen() {
     } else {
       const st = effectiveStopStatus(stop);
       const stMeta = STOP_STATUSES[st];
-      // En bac à sable il n'y a pas de libellé à écrire : la ligne s'arrête à
-      // l'heure de visite.
-      // La puce voyage avec le libellé : sur mobile la ligne se casse, et une
-      // puce seule en début de ligne se lit comme une liste à puces.
-      const statusLabel = !stMeta.label ? '' :
-        ` <span class="meta-part"><span class="dot">•</span> <span class="status-${stMeta.tone}">${esc(stMeta.label)}${st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : ''}</span></span>`;
-      // The simulate control sits on the status itself rather than adding a
-      // fourth icon to the action row: it acts on the thing it changes, and the
-      // row is already carrying three buttons.
+      const reportPending = !!(stop.report && !stop.report.sent);
+
+      // Les états de l'arrêt sont des pastilles autonomes, pas une phrase à
+      // séparateurs. Une puce « • » est de la ponctuation : dès que la ligne se
+      // casse, elle se retrouve en tête de ligne et se lit comme un marqueur de
+      // liste. Une pastille, elle, se casse sans se dénaturer — et deux faits
+      // de natures différentes (ce que le courtier a répondu, ce qu'il me reste
+      // à faire) ne se lisent plus comme une seule information.
+      const suffix = st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : '';
       const nextSt = STOP_STATUS_CYCLE[(STOP_STATUS_CYCLE.indexOf(st) + 1) % STOP_STATUS_CYCLE.length];
+      // Rien à simuler tant que la demande n'est pas partie : le simulateur
+      // joue la réponse d'un courtier qui n'a encore rien reçu.
+      const canSim = flag('simulateConfirmation') && st !== 'sandbox';
+      const statusChip = !stMeta.label ? ''
+        : canSim
+          ? `<button class="stop-flag tone-${stMeta.tone} is-sim" data-sim-status="${stop.id}"
+              title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
+              ${esc(stMeta.label)}${suffix}${icon('sync')}</button>`
+          : `<span class="stop-flag tone-${stMeta.tone}">${esc(stMeta.label)}${suffix}</span>`;
       // Un compte rendu mis de côté ne se retrouve que si l'arrêt le dit : sans
       // ça, « Visité » couvre autant celui qui est parti chez le vendeur que
       // celui qui attend encore, et le courtier n'a rien pour trier après coup.
-      const reportPending = !!(stop.report && !stop.report.sent);
-      // Le séparateur voyage avec l'étiquette : sinon, quand la ligne se casse,
-      // la puce reste seule en fin de ligne.
-      const visitedHtml = !stop.visited ? ''
+      const reportChip = !stop.visited ? ''
         : reportPending
-          ? ` <span class="meta-part"><span class="dot">•</span> <span class="status-report-todo">${icon('star')} Compte rendu à envoyer</span></span>`
-          : ` <span class="meta-part"><span class="dot">•</span> <span class="status-visited">${icon('star')} Visité</span></span>`;
-      // Rien à simuler tant que la demande n'est pas partie : le simulateur
-      // joue la réponse d'un courtier qui n'a encore rien reçu.
-      const statusHtml = (!flag('simulateConfirmation') || st === 'sandbox') ? statusLabel : `
-        <button class="status-sim" data-sim-status="${stop.id}"
-          title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
-          ${statusLabel}${icon('sync')}
-        </button>`;
+          ? `<span class="stop-flag tone-warn">${icon('star')} Compte rendu à envoyer</span>`
+          : `<span class="stop-flag tone-ok">${icon('star')} Visité</span>`;
+      const extChip = !stop.external ? ''
+        : `<span class="stop-flag tone-muted" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>`;
+      const flags = [statusChip, reportChip, extChip].filter(Boolean).join('');
+
       card = `
         <div class="stop-card${sharesSlot || opensSlot ? ' same-slot' : ''}${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
           <span class="drag-handle" ${stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`}>${icon('drag')}</span>
@@ -1645,21 +1648,22 @@ function renderBuilderScreen() {
             ${stopGlyph(st)}
           </div>
           <div class="stop-body">
-            <p class="stop-address">
-              <button class="pick-toggle${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
-                aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
-                title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}</button>
-              ${esc(stop.address)}${stop.external ? ` <span class="ext-chip" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>` : ''}</p>
-            <p class="stop-meta">Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}${statusHtml}${visitedHtml}</p>
+            <p class="stop-address">${esc(stop.address)}</p>
+            <p class="stop-meta">${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}</p>
+            ${flags ? `<div class="stop-flags">${flags}</div>` : ''}
           </div>
           <div class="stop-actions">
-            <button class="btn-icon" data-edit-stop="${stop.id}">${icon('pencil')}</button>
-            <button class="btn-icon danger" data-remove-stop="${stop.id}">${icon('trash')}</button>
+            <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
+                 paragraphe lui vole son bord gauche. Ici il porte son nom quand
+                 la place le permet, au lieu d'un cercle muet. -->
+            <button class="pick-btn${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
+              aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
+              title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}<span class="pick-label">Choix de l'acheteur</span></button>
+            <button class="btn-icon" data-edit-stop="${stop.id}" title="Modifier la visite">${icon('pencil')}</button>
+            <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour">${icon('trash')}</button>
             ${st === 'sandbox'
               // Envoyer et rendre compte ne coexistent jamais dans le temps :
               // la troisième place revient à celui des deux qui a un sens ici.
-              // Trois icônes en permanence, jamais quatre — la rangée est déjà
-              // étroite sur mobile.
               ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
               : `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${!stop.visited ? 'Faire le compte rendu de visite' : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite'}">${icon('star')}</button>`}
           </div>
