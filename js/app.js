@@ -6,6 +6,7 @@
 /* ---------------- Icons ---------------- */
 
 const ICONS = {
+  send: `<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   hourglass: `<path d="M6 2h12M6 22h12M6 2v5a6 6 0 0012 0V2M6 22v-5a6 6 0 0112-0v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   doc: `<path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/><path d="M9 12h6M9 16h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
   info: `<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
@@ -757,6 +758,7 @@ const state = {
   newPropertyTouched: false, // les champs manquants ne sont signalés qu'après un premier envoi
   insertBeforeId: null,     // id de l'étape avant laquelle insérer la prochaine destination
   dragStopId: null,
+  sendSelection: null,      // ids des propriétés cochées dans l'envoi groupé
   dirty: false,             // unsaved edits on a tour that was already sent
   reportStopId: null,       // stop being reported on while state.screen === 'report'
   reportDraft: null,        // { interet, prix, interieur, exterieur, offre, comment, callbackNumbers } for that stop
@@ -1001,16 +1003,36 @@ function shareTourWithBuyer(buyer) {
 // Étape 1 → 3 : les demandes partent aux courtiers inscripteurs. Prévenir
 // l'acheteur au passage ne vaut que s'il est déjà connu ; sinon le partage
 // viendra à l'étape 2, une fois les visites confirmées.
-// Envoi groupé : un raccourci pour ne pas cliquer huit fois. L'état obtenu est
-// exactement celui de huit envois individuels — c'est chaque arrêt qui porte sa
-// date d'envoi, le tour n'en a pas.
-function sendTourToBrokers(notifyBuyer) {
+// Le geste élémentaire : une demande part chez un courtier inscripteur. Tout
+// envoi passe par ici, qu'il vienne de l'icône d'un arrêt ou de l'envoi groupé.
+function markStopsSent(stops) {
   const now = Date.now();
-  state.draft.stops.forEach(s => {
+  stops.forEach(s => {
     if (s.type !== 'property' || s.sentAt) return;
     s.sentAt = now;
     s.relancedAt = null;
   });
+}
+
+// Envoi d'une seule demande. Le tour n'a pas de bascule à opérer : c'est
+// l'arrêt qui change de régime, les autres restent où ils en étaient.
+function sendStopRequest(stop) {
+  markStopsSent([stop]);
+  commitDraft();
+  render();
+  showToast(
+    `Demande de visite envoyée à ${stop.courtier || 'son courtier inscripteur'}${stop.lockedStart ? ` pour ${stop.lockedStart.replace(':', 'h')}` : ''}.`,
+    'success'
+  );
+}
+
+// Envoi groupé : un raccourci pour ne pas cliquer huit fois. L'état obtenu est
+// exactement celui de huit envois individuels — c'est chaque arrêt qui porte sa
+// date d'envoi, le tour n'en a pas.
+function sendTourToBrokers(notifyBuyer, selectedIds = null) {
+  const targets = state.draft.stops.filter(s =>
+    s.type === 'property' && !s.sentAt && (!selectedIds || selectedIds.includes(s.id)));
+  markStopsSent(targets);
   commitDraft({
     sharedAt: notifyBuyer && state.draft.buyer ? Date.now() : null,
   });
@@ -1018,8 +1040,8 @@ function sendTourToBrokers(notifyBuyer) {
   render();
   showToast(
     notifyBuyer
-      ? "Demandes de visites envoyées aux courtiers inscripteurs et à l'acheteur."
-      : 'Demandes de visites envoyées aux courtiers inscripteurs.',
+      ? `${targets.length} demande${targets.length > 1 ? 's' : ''} de visite envoyée${targets.length > 1 ? 's' : ''} aux courtiers inscripteurs et à l'acheteur.`
+      : `${targets.length} demande${targets.length > 1 ? 's' : ''} de visite envoyée${targets.length > 1 ? 's' : ''} aux courtiers inscripteurs.`,
     'success'
   );
 }
@@ -1573,7 +1595,13 @@ function renderBuilderScreen() {
           <div class="stop-actions">
             <button class="btn-icon" data-edit-stop="${stop.id}">${icon('pencil')}</button>
             <button class="btn-icon danger" data-remove-stop="${stop.id}">${icon('trash')}</button>
-            <button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${!stop.visited ? 'Faire le compte rendu de visite' : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite'}">${icon('star')}</button>
+            ${st === 'sandbox'
+              // Envoyer et rendre compte ne coexistent jamais dans le temps :
+              // la troisième place revient à celui des deux qui a un sens ici.
+              // Trois icônes en permanence, jamais quatre — la rangée est déjà
+              // étroite sur mobile.
+              ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
+              : `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${!stop.visited ? 'Faire le compte rendu de visite' : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite'}">${icon('star')}</button>`}
           </div>
         </div>`;
 
@@ -1766,7 +1794,7 @@ function renderModal() {
   if (state.modal.type === 'destination') { root.innerHTML = renderDestinationModal(); return; }
   if (state.modal.type === 'newProperty') { root.innerHTML = renderNewPropertyModal(); return; }
   if (state.modal.type === 'visitRequest') { root.innerHTML = renderVisitRequestModal(); return; }
-  if (state.modal.type === 'confirmSend') { root.innerHTML = renderConfirmSendModal(); return; }
+  if (state.modal.type === 'sendRequests') { root.innerHTML = renderSendRequestsModal(); return; }
   if (state.modal.type === 'confirmSendUpdate') { root.innerHTML = renderConfirmSendUpdateModal(); return; }
   if (state.modal.type === 'confirmDeleteTour') {
     const t = currentTour();
@@ -2028,16 +2056,51 @@ function renderVisitRequestModal() {
     </div>`;
 }
 
-function renderConfirmSendModal() {
+// Envoi groupé. Ce n'est pas « tout ou rien » : le courtier compose souvent
+// plus large qu'il n'envoie, et garde des propriétés de côté pour un second
+// tour. La liste est donc cochable, tout coché par défaut — le cas courant
+// reste un clic, le cas partiel reste possible.
+function renderSendRequestsModal() {
+  const pending = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt);
+  const chosen = state.sendSelection || [];
+  const n = chosen.length;
+  const buyer = state.draft.buyer;
+
+  const rows = pending.map(s => {
+    const row = computeSchedule(state.draft).find(r => r.stop.id === s.id);
+    const heure = s.lockedStart ? s.lockedStart.replace(':', 'h') : (row ? minutesToLabel(row.start) : '');
+    const on = chosen.includes(s.id);
+    return `
+      <label class="send-row${on ? ' is-on' : ''}">
+        <input type="checkbox" data-send-pick="${s.id}" ${on ? 'checked' : ''}>
+        ${s.external
+          ? `<span class="result-pin">${icon('mapPinOutline')}</span>`
+          : `<img class="result-thumb" src="${thumbFor(s.mls, s.address)}" alt="">`}
+        <span class="send-row-text">
+          <span class="send-row-address">${esc(s.address)}</span>
+          <span class="send-row-meta">${heure}${s.courtier ? ` <span class="dot">•</span> ${esc(s.courtier)}` : ''}</span>
+        </span>
+      </label>`;
+  }).join('');
+
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm">
-        <div class="modal-body" style="padding-top:24px;">
-          <h2 style="font-size:17px;text-align:center;color:var(--bleu-principal);margin:0 0 18px;">Envoyer la demande de visite à</h2>
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            <button class="btn btn-primary btn-block" id="btn-send-broker-buyer">Courtier et acheteur</button>
-            <button class="btn btn-primary btn-block" id="btn-send-broker-only">Courtier uniquement</button>
-          </div>
+      <div class="modal">
+        <div class="modal-head"><h2>Envoyer les demandes de visites</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-body">
+          <p class="helper-text" style="margin:0 0 14px;">Chaque courtier inscripteur reçoit la demande de sa propriété, avec le créneau que vous avez retenu. Les propriétés décochées restent au bac à sable.</p>
+          <div class="send-list">${rows}</div>
+        </div>
+        <div class="modal-footer" style="display:flex;flex-direction:column;gap:10px;">
+          ${buyer ? `
+            <button class="btn btn-primary btn-block" id="btn-send-broker-buyer" ${n ? '' : 'disabled'}>Envoyer aux courtiers et à ${esc(buyer.prenom)}</button>
+            <button class="btn btn-outline btn-block" id="btn-send-broker-only" ${n ? '' : 'disabled'}>Envoyer aux courtiers seulement</button>
+          ` : `
+            <button class="btn btn-primary btn-block" id="btn-send-broker-only" ${n ? '' : 'disabled'}>
+              ${n ? `Envoyer ${n} demande${n > 1 ? 's' : ''}` : 'Choisissez au moins une propriété'}
+            </button>
+          `}
+          <button class="btn btn-outline btn-block" id="modal-cancel">Annuler</button>
         </div>
       </div>
     </div>`;
@@ -3070,9 +3133,20 @@ function bindBuilderEvents() {
 
   const sendBtn = document.getElementById('btn-send-tour');
   if (sendBtn) sendBtn.onclick = () => {
-    if (state.draft.buyer) { state.modal = { type: 'confirmSend' }; render(); return; }
-    sendTourToBrokers(false);
+    // Tout est coché d'avance : envoyer l'ensemble reste un clic, choisir
+    // devient possible sans devenir obligatoire.
+    state.sendSelection = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt).map(s => s.id);
+    state.modal = { type: 'sendRequests' };
+    render();
   };
+
+  // Envoi d'une seule demande, depuis l'arrêt lui-même.
+  document.querySelectorAll('[data-send-stop]').forEach(el => {
+    el.onclick = () => {
+      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-send-stop'));
+      if (stop) sendStopRequest(stop);
+    };
+  });
 
   // Étape 4 : le partage passe par le choix du client. Quand le tour en a déjà
   // un, on repart quand même de cet écran — c'est là qu'on peut le changer.
@@ -3431,11 +3505,25 @@ function bindModalEvents() {
   if (state.modal.type === 'destination') bindDestinationModalEvents();
   if (state.modal.type === 'newProperty') bindNewPropertyModalEvents();
   if (state.modal.type === 'visitRequest') bindVisitRequestModalEvents();
-  if (state.modal.type === 'confirmSend') {
+  if (state.modal.type === 'sendRequests') {
+    document.querySelectorAll('[data-send-pick]').forEach(el => {
+      el.onchange = () => {
+        const id = el.getAttribute('data-send-pick');
+        const sel = state.sendSelection || [];
+        state.sendSelection = el.checked ? [...sel, id] : sel.filter(x => x !== id);
+        render();
+      };
+    });
+    const send = (notifyBuyer) => {
+      const picked = state.sendSelection || [];
+      if (!picked.length) return;
+      state.sendSelection = null;
+      sendTourToBrokers(notifyBuyer, picked);
+    };
     const brokerOnly = document.getElementById('btn-send-broker-only');
-    if (brokerOnly) brokerOnly.onclick = () => sendTourToBrokers(false);
+    if (brokerOnly) brokerOnly.onclick = () => send(false);
     const brokerBuyer = document.getElementById('btn-send-broker-buyer');
-    if (brokerBuyer) brokerBuyer.onclick = () => sendTourToBrokers(true);
+    if (brokerBuyer) brokerBuyer.onclick = () => send(true);
   }
   if (state.modal.type === 'confirmSendUpdate') {
     const brokerOnly = document.getElementById('btn-send-update-broker-only');

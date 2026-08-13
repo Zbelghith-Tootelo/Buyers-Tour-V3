@@ -4,6 +4,7 @@
   --bleu-nav-10: #EEF0F5;
   --bleu-secondaire: #0066DC;
   --bleu-action-10: #EAF3FB;
+  --bleu-action-30: #99C2F2;
   --bleu-action-dark: #004FA9;
   --rouge-principal: #C8102E;
   --rouge-10: #FAE8EB;
@@ -615,6 +616,28 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
    en place — la retirer ferait sauter l'alignement des cartes entre elles —
    mais s'efface et perd son curseur de saisie. */
 .stop-card.is-pinned .drag-handle { opacity: 0.25; cursor: default; }
+
+/* Envoyer une demande est l'action qui fait avancer un arrêt du bac à sable :
+   elle porte le bleu d'action, là où crayon et corbeille restent neutres. */
+.btn-icon.send-request { color: var(--bleu-secondaire); border-color: var(--bleu-action-30); }
+.btn-icon.send-request:hover { background: var(--bleu-secondaire); border-color: var(--bleu-secondaire); color: var(--blanc); }
+
+/* Liste cochable de l'envoi groupé. La ligne entière est la cible : une case à
+   cocher seule fait 16px, très en dessous des 44px confortables (Fitts). */
+.send-list { display: flex; flex-direction: column; gap: 8px; }
+.send-row {
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+  border: 1px solid var(--bordures); border-radius: var(--radius-lg);
+  padding: 10px 12px; min-height: 44px;
+  transition: border-color 150ms ease-out, background 150ms ease-out;
+}
+.send-row:hover { border-color: var(--bleu-secondaire); }
+.send-row.is-on { border-color: var(--bleu-secondaire); background: var(--lumiere-principale); }
+.send-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--bleu-secondaire); margin: 0; }
+.send-row:focus-within { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+.send-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.send-row-address { font-size: 14px; font-weight: 600; color: var(--texte-principal); }
+.send-row-meta { font-size: 12.5px; color: var(--texte-secondaire); }
 
 .stop-icon.pause { background: var(--bleu-action-10); }
 .stop-icon.pause svg { color: var(--bleu-secondaire); }
