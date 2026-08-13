@@ -539,27 +539,6 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .plan-unchanged { color: var(--texte-secondaire); font-size: 12px; }
 
 /* Propriété hors catalogue : la demande part par courriel, sans créer de fiche. */
-/* Crochet « choix de l'acheteur ». Il qualifie l'adresse, il se pose donc
-   contre elle — pas dans la rangée d'actions, déjà pleine, et pas en pastille
-   colorée de plus : la carte porte déjà le vert de la confirmation et l'ambre
-   de l'attente. Ceci dit d'où vient la propriété, pas où elle en est, d'où le
-   bleu d'action qui n'entre en concurrence avec aucun statut. */
-.pick-toggle {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; padding: 0; margin-right: 6px; vertical-align: -4px;
-  border: 1.5px solid var(--bordures); border-radius: 50%;
-  background: var(--blanc); color: var(--bordures); cursor: pointer;
-  transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
-}
-.pick-toggle svg { width: 12px; height: 12px; }
-/* Le dessin fait 20px pour ne pas écraser l'adresse, la cible tactile en fait
-   44 : l'un est une question de composition, l'autre de doigt (HIG / WCAG 2.2). */
-.pick-toggle { position: relative; }
-.pick-toggle::after { content: ''; position: absolute; inset: -12px; }
-.pick-toggle:hover { border-color: var(--bleu-secondaire); color: var(--bleu-action-30); }
-.pick-toggle:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
-.pick-toggle.is-on { background: var(--bleu-secondaire); border-color: var(--bleu-secondaire); color: var(--blanc); }
-.pick-toggle.is-on:hover { background: var(--bleu-action-dark); border-color: var(--bleu-action-dark); color: var(--blanc); }
 
 .ext-chip {
   display: inline-block; white-space: nowrap; flex-shrink: 0;
@@ -667,44 +646,64 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .stop-body { flex: 1; min-width: 0; }
 .stop-address { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
 .stop-meta { font-size: 13px; color: var(--texte-secondaire); margin: 0; }
-.stop-meta .status-ok { color: var(--succes); font-weight: 600; }
-.stop-meta .status-pending { color: var(--attention); font-weight: 600; }
 /* Les cinq réponses possibles d'un courtier. Le ton ne repose jamais sur la
    seule couleur : le libellé porte déjà l'information (WCAG 1.4.1). */
-.stop-meta .status-warn { color: #8a5a05; font-weight: 600; }
-.stop-meta .status-danger { color: var(--rouge-principal); font-weight: 600; }
-.stop-meta .status-muted { color: var(--texte-secondaire); font-weight: 600; }
-.stop-meta .status-visited { color: var(--succes); font-weight: 600; display: inline-flex; align-items: flex-start; gap: 3px; }
-.stop-meta .status-visited svg { width: 12px; height: 12px; margin-top: 3px; }
 /* Puce + étiquette forment un bloc : ils passent à la ligne ensemble. */
-.stop-meta .meta-part { display: inline-block; }
 /* Compte rendu mis de côté : la visite a bien eu lieu, mais il reste un geste.
    Ambre plutôt que vert, pour qu'il ne se lise pas comme terminé. */
 /* L'étoile reste sur la première ligne quand l'étiquette se casse en deux : au
    centre, elle flottait au milieu d'un bloc de texte. */
-.stop-meta .status-report-todo { color: #8a5a05; font-weight: 600; display: inline-flex; align-items: flex-start; gap: 3px; }
-.stop-meta .status-report-todo svg { width: 12px; height: 12px; margin-top: 3px; }
 
 /* Demo control: clicking the status simulates the listing broker's answer. The
    dashed underline marks it as a simulation affordance rather than a real
    business action — only the listing broker confirms a visit. */
-.status-sim {
-  display: inline-flex; align-items: center; gap: 4px; vertical-align: baseline;
-  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
-  border-bottom: 1px dashed var(--bordures);
-  /* Un <button> centre son texte : quand le libellé passe sur deux lignes, la
-     seconde se retrouvait centrée sous la première au lieu de s'aligner. */
-  text-align: left;
-}
-.status-sim svg { width: 11px; height: 11px; color: var(--texte-secondaire); opacity: 0; transition: opacity 120ms ease-out; }
-.status-sim:hover svg, .status-sim:focus-visible svg { opacity: 1; }
-.status-sim:hover { border-bottom-color: var(--texte-secondaire); }
-.status-sim:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; border-radius: 2px; }
 
-@media (prefers-reduced-motion: reduce) {
-  .status-sim svg { transition: none; }
-}
 .stop-meta .dot { margin: 0 5px; }
+
+/* Pastilles d'état d'un arrêt. Elles remplacent une phrase à séparateurs :
+   « heure • statut • compte rendu » se lisait comme une seule information, et
+   dès que la ligne se cassait chaque puce devenait un marqueur de liste. Une
+   pastille garde son sens quelle que soit la largeur, et deux faits de natures
+   différentes cessent de se confondre. */
+.stop-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.stop-flag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700; line-height: 1.35; text-align: left;
+  padding: 3px 9px; border-radius: var(--radius-md);
+  background: var(--neutre-surface); color: var(--texte-secondaire);
+  border: none; font-family: inherit;
+}
+.stop-flag svg { width: 12px; height: 12px; }
+.stop-flag.tone-ok { background: var(--succes-bg); color: #17792a; }
+.stop-flag.tone-pending, .stop-flag.tone-warn { background: var(--attention-bg); color: #8a5a05; }
+.stop-flag.tone-danger { background: var(--rouge-10); color: var(--rouge-dark); }
+.stop-flag.tone-muted { background: var(--neutre-surface); color: var(--texte-secondaire); }
+/* Contrôle de démo : la pastille devient cliquable pour jouer la réponse du
+   courtier. Le chevron n'apparaît qu'au survol, mais occupe sa place en
+   permanence — sinon la pastille change de largeur sous le curseur. */
+.stop-flag.is-sim { cursor: pointer; }
+.stop-flag.is-sim svg { opacity: 0; transition: opacity 120ms ease-out; }
+.stop-flag.is-sim:hover svg, .stop-flag.is-sim:focus-visible svg { opacity: 1; }
+.stop-flag.is-sim:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+
+/* Crochet « choix de l'acheteur ». Il a quitté la ligne d'adresse — un contrôle
+   logé dans un paragraphe lui vole son bord gauche — pour rejoindre la rangée
+   des contrôles, où il porte son nom quand la place le permet. */
+.pick-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 38px; min-width: 38px; padding: 0 9px;
+  border: 1px solid var(--bordures); border-radius: var(--radius-lg);
+  background: var(--blanc); color: #C5CBE0; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
+}
+.pick-btn svg { width: 16px; height: 16px; }
+.pick-btn:hover { border-color: var(--bleu-secondaire); color: var(--bleu-secondaire); }
+.pick-btn:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+.pick-btn.is-on { background: var(--bleu-action-10); border-color: var(--bleu-secondaire); color: var(--bleu-secondaire); }
+/* Sur desktop la rangée est serrée : l'étiquette cède, l'infobulle reste. */
+.pick-label { display: none; }
+
 
 .stop-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
@@ -1129,15 +1128,23 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   .stop-card {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr);
-    align-items: center;
+    /* Poignée et maison se calent sur la première ligne d'adresse, à laquelle
+       elles se rapportent. Centrées, elles flottaient au milieu d'un bloc de
+       quatre lignes sans se rattacher à rien. */
+    align-items: start;
     gap: 10px;
   }
+  .stop-card .drag-handle, .stop-card .stop-icon { margin-top: 2px; }
   .stop-card .stop-actions {
     grid-column: 1 / -1;
-    justify-content: flex-end;
+    align-items: center;
     border-top: 1px solid var(--bordures);
     padding-top: 10px;
   }
+  /* Le crochet nomme ce qu'il fait dès qu'il y a la place, et occupe le bord
+     gauche : les trois actions sur l'arrêt restent groupées à droite. */
+  .pick-label { display: inline; }
+  .pick-btn { margin-right: auto; }
 
   .mobile-footer {
     display: flex;
