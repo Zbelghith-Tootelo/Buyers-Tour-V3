@@ -585,6 +585,23 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 
 .readonly-chip { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); background: var(--blanc); font-weight: 600; color: var(--bleu-secondaire); cursor: pointer; }
 .readonly-chip svg { width: 16px; height: 16px; color: var(--texte-secondaire); }
+/* Champ vide : le pointillé annonce une place à remplir plutôt qu'une valeur
+   absente, et le texte reste une question à laquelle on peut ne pas répondre. */
+.readonly-chip.is-empty {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  border-style: dashed;
+  border-color: var(--bleu-nav-25);
+  color: var(--texte-secondaire);
+}
+.readonly-chip.is-empty:hover { border-color: var(--bleu-secondaire); color: var(--bleu-secondaire); }
+.readonly-chip.is-empty:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+
+.field-optional { font-weight: 400; color: var(--texte-secondaire); font-size: 12px; }
+.footer-note.is-warn { color: #8a5a05; }
 
 .action-row { display: flex; gap: 12px; margin: 22px 0 20px; flex-wrap: wrap; }
 .action-row .btn { flex: 1; min-width: 200px; }

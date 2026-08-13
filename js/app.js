@@ -784,7 +784,7 @@ const state = {
   editingTourId: null,      // if editing an existing tour from the list
   contactSearch: '',
   contactSelectedBuyer: null,
-  contactPurpose: 'create',  // 'create' (étape 1) | 'share' (étape 4)
+  contactPurpose: 'create',  // 'create' (étape 1) | 'name' (bac à sable) | 'share' (étape 4)
   pendingLeave: null,        // navigation en attente de confirmation
   showBuyerForm: false,
   modal: null,              // { type, ...payload }
@@ -1214,15 +1214,16 @@ function renderSidebarNav() {
 }
 
 // Le titre de l'écran du tour. « Créer un tour de visites » décrit une action
-// en cours : il ne vaut que tant que rien n'est parti. Dès que le tour existe
-// pour d'autres, on le nomme comme la liste le nomme — par son acheteur — pour
-// qu'on reconnaisse au titre le tour sur lequel on a cliqué.
+// en cours : il ne vaut que tant qu'on ne sait pas quoi dire de mieux. Dès
+// qu'un acheteur est connu — au bac à sable comme après l'envoi — c'est lui qui
+// nomme le tour, comme dans la liste : le titre sert alors à reconnaître le
+// tour sur lequel on a cliqué, ce qu'un libellé identique pour tous ne fait pas.
 function builderTitle() {
   const d = state.draft;
   if (!d) return 'Créer un tour de visites';
+  if (d.buyer) return `Tour de ${d.buyer.prenom} ${d.buyer.nom}`;
   const saved = currentTour();
   if (!saved || !tourSentAt(saved)) return 'Créer un tour de visites';
-  if (d.buyer) return `Tour de ${d.buyer.prenom} ${d.buyer.nom}`;
   // Tour parti sans acheteur : la date est le seul nom qu'il ait.
   return `Tour du ${formatDateLong(d.date)}`;
 }
@@ -1257,7 +1258,7 @@ function render() {
   if (state.screen === 'list') { setTopbarTitle('Tour de visites'); main.innerHTML = renderListScreen(); }
   // L'écran nomme son objet — l'acheteur — et non l'envoi : on peut en repartir
   // sans avoir rien envoyé.
-  else if (state.screen === 'contact') { setTopbarTitle(state.contactPurpose === 'share' ? 'Choisir l\'acheteur' : 'Créer un tour de visites'); main.innerHTML = renderContactScreen(); }
+  else if (state.screen === 'contact') { setTopbarTitle(state.contactPurpose === 'create' ? 'Créer un tour de visites' : 'Choisir l\'acheteur'); main.innerHTML = renderContactScreen(); }
   else if (state.screen === 'builder') { setTopbarTitle(builderTitle()); main.innerHTML = renderBuilderScreen(); }
   else if (state.screen === 'map') { setTopbarTitle('Carte du tour'); main.innerHTML = renderMapScreen(); }
   else if (state.screen === 'report') { setTopbarTitle('Compte rendu de visite'); main.innerHTML = renderReportScreen(); }
@@ -1373,7 +1374,7 @@ function renderContactScreen() {
         <div class="buyer-chip">
           <input class="input" value="${esc(selected.prenom + ' ' + selected.nom)}" readonly>
           <div class="input-actions">
-            <button class="select-icon-btn help" id="btn-edit-selected-buyer" title="Modifier">${icon('pencil')}</button>
+            <button class="select-icon-btn help" data-edit-buyer title="Modifier">${icon('pencil')}</button>
             <button class="select-icon-btn remove" id="btn-remove-selected-buyer" title="Retirer">${icon('x')}</button>
           </div>
         </div>
@@ -1402,6 +1403,16 @@ function renderContactScreen() {
 
   const canSave = selected || (state.showBuyerForm && buyerFormValid());
   const sharing = state.contactPurpose === 'share';
+  const naming = state.contactPurpose === 'name';
+
+  // Le courriel n'est exigé qu'ici, seul endroit où il serve : un acheteur
+  // nommé au bac à sable peut n'avoir qu'un nom, et on ne lui réclame ses
+  // coordonnées qu'au moment où le tour doit partir chez lui.
+  const noEmail = sharing && selected && !(selected.email || '').trim();
+  const canSend = canSave && !noEmail;
+  const emailNote = !noEmail ? '' : `
+    <p class="footer-note is-warn">${esc(selected.prenom)} n'a pas encore de courriel.
+      <button class="btn-inline" data-edit-buyer>Ajouter un courriel</button> pour lui envoyer le tour.</p>`;
 
   // En partage, l'écran rappelle ce qui va être transmis : on choisit un
   // destinataire, pas un contact dans l'abstrait.
@@ -1421,18 +1432,25 @@ function renderContactScreen() {
       ${searchBlock}
       ${formBlock}
       <div class="form-actions" style="margin-top:${state.showBuyerForm || selected ? '4px' : '0'};">
-        <button class="btn btn-primary" id="btn-save-contact" ${canSave ? '' : 'disabled'}>${sharing ? 'Envoyer à l\'acheteur' : 'Sauvegarder'}</button>
+        <button class="btn btn-primary" id="btn-save-contact" ${(sharing ? canSend : canSave) ? '' : 'disabled'}>${sharing ? 'Envoyer à l\'acheteur' : naming ? 'Enregistrer' : 'Sauvegarder'}</button>
         ${sharing ? `<button class="btn btn-outline" id="btn-attach-contact" ${canSave ? '' : 'disabled'}>Enregistrer</button>` : ''}
         <button class="btn btn-outline" id="btn-cancel-contact">Annuler</button>
       </div>
+      ${emailNote}
       ${sharing ? `<p class="footer-note">« Enregistrer » rattache l'acheteur au tour sans le lui envoyer : le tour reste <strong>Non envoyé</strong>.</p>` : ''}
+      ${naming ? `<p class="footer-note">Le tour prend le nom de l'acheteur pour que vous le retrouviez. Rien ne lui est envoyé : il reste au <strong>bac à sable</strong>.</p>` : ''}
     </div>
   `;
 }
 
 function buyerFormValid() {
   const f = state.buyerFormDraft || {};
-  return !!(f.prenom && f.prenom.trim() && f.nom && f.nom.trim() && f.emails && f.emails.some(e => e.trim()));
+  const named = !!(f.prenom && f.prenom.trim() && f.nom && f.nom.trim());
+  // Divulgation progressive : au bac à sable le nom suffit, puisqu'il ne sert
+  // qu'à étiqueter le tour. Le courriel devient obligatoire à l'étape où il
+  // sert vraiment — l'envoi — et non avant.
+  if (state.contactPurpose === 'name') return named;
+  return named && !!(f.emails && f.emails.some(e => e.trim()));
 }
 
 function renderBuyerForm() {
@@ -1457,7 +1475,7 @@ function renderBuyerForm() {
       </div>
       <div class="field">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <label class="field-label" style="margin-bottom:0;">Courriel(s)</label>
+          <label class="field-label" style="margin-bottom:0;">Courriel(s)${state.contactPurpose === 'name' ? ' <span class="field-optional">facultatif pour l\'instant</span>' : ''}</label>
           <div style="display:flex;gap:6px;">
             <button class="select-icon-btn add" id="bf-add-email" title="Ajouter un courriel">${icon('plus')}</button>
             <button class="select-icon-btn help" title="Courriel principal pour l'envoi des confirmations">?</button>
@@ -1699,13 +1717,24 @@ function renderBuilderScreen() {
 
   // L'acheteur n'apparaît qu'une fois choisi, à la fin du parcours : pendant la
   // composition du tour, un champ vide n'aurait rien à dire.
-  const buyerField = !buyer ? '' : `
+  // L'acheteur nomme le tour, donc le champ existe dès le bac à sable et non
+  // seulement une fois l'envoi fait : sans nom, deux brouillons se ressemblent
+  // trait pour trait dans la liste, et la recherche — qui ne cherche que des
+  // contacts — ne les atteint pas.
+  const buyerField = buyer ? `
     <div class="field">
       <label class="field-label">Nom de l'acheteur</label>
       <div class="readonly-chip" id="btn-change-buyer">
         ${esc(buyer.prenom + ' ' + buyer.nom)}
         ${icon('chevronRight')}
       </div>
+    </div>` : `
+    <div class="field">
+      <label class="field-label">Nom de l'acheteur</label>
+      <button class="readonly-chip is-empty" id="btn-name-buyer">
+        Pour qui est ce tour ?
+        ${icon('chevronRight')}
+      </button>
     </div>`;
 
   // Un tour daté d'hier se range tout seul dans « Passé ». Le courtier qui
@@ -2129,7 +2158,11 @@ function renderSendRequestsModal() {
   const pending = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt);
   const chosen = state.sendSelection || [];
   const n = chosen.length;
-  const buyer = state.draft.buyer;
+  // Nommer l'acheteur n'est pas vouloir le prévenir. Tant qu'aucune visite
+  // n'est confirmée, le tour n'a rien à lui annoncer : on refuse d'offrir un
+  // courriel irréversible comme chemin de moindre résistance (Nielsen #5).
+  const anyConfirmed = state.draft.stops.some(s => s.type === 'property' && effectiveStopStatus(s) === 'confirmed');
+  const buyer = anyConfirmed ? state.draft.buyer : null;
 
   const rows = pending.map(s => {
     const row = computeSchedule(state.draft).find(r => r.stop.id === s.id);
@@ -2794,7 +2827,7 @@ function bindEvents() {
   const goBack = () => {
     if (state.screen === 'map') { state.screen = 'builder'; render(); return; }
     if (state.screen === 'report') { state.screen = 'builder'; state.reportStopId = null; state.reportDraft = null; render(); return; }
-    if (state.screen === 'contact' && state.contactPurpose === 'share') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
+    if (state.screen === 'contact' && state.contactPurpose !== 'create') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
     leaveTour(() => {
       if (state.screen === 'contact' || state.screen === 'builder') { state.screen = 'list'; state.draft = null; }
       else { state.screen = 'menu'; }
@@ -2886,15 +2919,20 @@ function bindContactEvents() {
   });
   const removeBuyer = document.getElementById('btn-remove-selected-buyer');
   if (removeBuyer) removeBuyer.onclick = () => { state.contactSelectedBuyer = null; state.contactSearch = ''; render(); };
-  const editBuyer = document.getElementById('btn-edit-selected-buyer');
-  if (editBuyer) editBuyer.onclick = () => {
-    const b = state.contactSelectedBuyer;
-    state.buyerFormDraft = { prenom: b.prenom, nom: b.nom, emails: [b.email], tels: [b.tel], editingId: b.id };
-    state.showBuyerForm = true;
-    state.contactSelectedBuyer = null;
-    state.contactSearch = '';
-    render();
-  };
+  // Deux entrées, un seul geste : le crayon de la puce et le lien « Ajouter un
+  // courriel » ouvrent la même fiche préremplie.
+  document.querySelectorAll('[data-edit-buyer]').forEach(el => {
+    el.onclick = () => {
+      const b = state.contactSelectedBuyer;
+      if (!b) return;
+      state.buyerFormDraft = { prenom: b.prenom, nom: b.nom, emails: [b.email || ''], tels: [b.tel || ''], editingId: b.id };
+      state.showBuyerForm = true;
+      state.contactSelectedBuyer = null;
+      state.contactSearch = '';
+      render();
+      setTimeout(() => document.querySelector('[data-email-idx="0"]')?.focus(), 0);
+    };
+  });
 
   const toggleForm = document.getElementById('btn-toggle-buyer-form');
   if (toggleForm) toggleForm.onclick = () => {
@@ -2916,6 +2954,14 @@ function bindContactEvents() {
       showToast(`Tour envoyé à ${buyer.prenom} ${buyer.nom}.`, 'success');
       return;
     }
+    // Nommer un tour déjà ouvert : on rattache l'acheteur au brouillon en
+    // cours. Surtout pas newDraft(), qui repartirait d'un tour vide.
+    if (state.contactPurpose === 'name') {
+      attachBuyerToTour(buyer);
+      backToBuilderFromContact();
+      showToast(`Ce tour s'appelle maintenant « Tour de ${buyer.prenom} ${buyer.nom} ».`);
+      return;
+    }
     state.draft = newDraft(buyer);
     state.screen = 'builder';
     render();
@@ -2932,9 +2978,9 @@ function bindContactEvents() {
   };
   const cancelBtn = document.getElementById('btn-cancel-contact');
   if (cancelBtn) cancelBtn.onclick = () => {
-    // Annuler depuis l'étape 4 ramène au tour, pas à la liste : le tour existe
-    // déjà, on renonce juste à le partager maintenant.
-    if (state.contactPurpose === 'share') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
+    // Annuler depuis le partage ou le nommage ramène au tour, pas à la liste :
+    // le tour existe déjà, on renonce juste à le nommer ou à le partager.
+    if (state.contactPurpose !== 'create') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
     leaveTour(() => { state.screen = 'list'; state.draft = null; });
   };
 }
@@ -3239,6 +3285,20 @@ function bindBuilderEvents() {
   };
   const shareBtn = document.getElementById('btn-share-buyer');
   if (shareBtn) shareBtn.onclick = goToShare;
+
+  // Nommer n'est pas notifier : au bac à sable, on ne fait que poser une
+  // étiquette sur le tour, rien ne part chez l'acheteur. D'où un troisième
+  // usage de l'écran de contact, distinct du partage.
+  const nameBuyerBtn = document.getElementById('btn-name-buyer');
+  if (nameBuyerBtn) nameBuyerBtn.onclick = () => {
+    state.contactPurpose = 'name';
+    state.contactSelectedBuyer = null;
+    state.contactSearch = '';
+    state.showBuyerForm = false;
+    state.buyerFormDraft = null;
+    state.screen = 'contact';
+    render();
+  };
 
 
   const saveDraftBtn = document.getElementById('btn-save-draft');
