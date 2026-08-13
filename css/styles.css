@@ -236,8 +236,16 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .switch.on .switch-thumb { transform: translateX(18px); }
 .switch:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
 
+/* La règle ne couvrait qu'un interrupteur alors que treize transitions et une
+   animation existent. Qui demande moins de mouvement le demande partout : la
+   règle porte donc sur tout, sans avoir à être rallongée à chaque ajout. */
 @media (prefers-reduced-motion: reduce) {
-  .switch, .switch-thumb { transition: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .user-info { display: flex; align-items: center; gap: 8px; }
