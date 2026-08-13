@@ -884,10 +884,6 @@ function setStopStatus(stop, status) {
     if (row) stop.lockedStart = minutesToLabel(row.start).replace('h', ':');
   }
 }
-function setStopConfirmation(stop, confirmed) {
-  setStopStatus(stop, confirmed ? 'confirmed' : 'pending');
-}
-
 // Accepter la contre-proposition, c'est confirmer la visite à l'heure que le
 // courtier a proposée — pas à celle qu'on avait demandée.
 function acceptProposedStart(stop) {
@@ -2737,55 +2733,50 @@ function renderReportScreen() {
       Enregistré pour plus tard, le compte rendu reste dans le tour : vous l'enverrez une fois les visites terminées.</p>`;
 }
 
+// Modifier une pause. Une propriété, elle, ne se modifie que par la modale de
+// demande de visite : son horaire est un engagement pris auprès d'un courtier
+// inscripteur, donc toute retouche repart en validation. Un second formulaire
+// local rouvrirait une porte pour changer un statut sans que personne réponde.
 function renderEditStopModal() {
   const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
-  if (!stop) return '';
-  if (stop.type === 'pause') {
-    return `
-      <div class="modal-overlay" id="modal-overlay">
-        <div class="modal modal-sm">
-          <div class="modal-head"><h2>Modifier la pause</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
-          <div class="modal-body">
-            <div class="field">
-              <label class="field-label">Durée</label>
-              <select class="input select" id="edit-pause-duration">
-                ${[15, 30, 45, 60].map(v => `<option value="${v}" ${v === stop.duration ? 'selected' : ''}>${v} minutes</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="modal-footer" style="display:flex;gap:10px;">
-            <button class="btn btn-primary" id="btn-save-edit-pause">Enregistrer</button>
-            <button class="btn btn-outline" id="modal-cancel">Annuler</button>
-          </div>
-        </div>
-      </div>`;
-  }
+  if (!stop || stop.type !== 'pause') return '';
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm">
-        <div class="modal-head"><h2>Modifier la visite</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
+        <div class="modal-head"><h2>Modifier la pause</h2><button class="modal-close" id="modal-close">${icon('x')}</button></div>
         <div class="modal-body">
-          <p class="helper-text" style="margin-top:0;">${esc(stop.address)}</p>
           <div class="field">
-            <label class="field-label">Statut</label>
-            <select class="input select" id="edit-stop-status">
-              <option value="pending" ${stop.status === 'pending' ? 'selected' : ''}>En attente de confirmation du courtier inscripteur</option>
-              <option value="confirmed" ${stop.status === 'confirmed' ? 'selected' : ''}>Confirmée</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="field-label">Durée de la visite</label>
-            <select class="input select" id="edit-stop-duration">
+            <label class="field-label">Durée</label>
+            <select class="input select" id="edit-pause-duration">
               ${[15, 30, 45, 60].map(v => `<option value="${v}" ${v === stop.duration ? 'selected' : ''}>${v} minutes</option>`).join('')}
             </select>
           </div>
         </div>
         <div class="modal-footer" style="display:flex;gap:10px;">
-          <button class="btn btn-primary" id="btn-save-edit-stop">Enregistrer</button>
+          <button class="btn btn-primary" id="btn-save-edit-pause">Enregistrer</button>
           <button class="btn btn-outline" id="modal-cancel">Annuler</button>
         </div>
       </div>
     </div>`;
+}
+
+// Seul point d'entrée pour modifier une propriété du tour, quel que soit le
+// bouton d'où l'on vient : même formulaire, même retour en validation.
+function openVisitEditor(stop) {
+  const row = computeSchedule(state.draft).find(r => r.stop.id === stop.id);
+  state.modal = {
+    type: 'visitRequest',
+    editStopId: stop.id,
+    mls: stop.mls,
+    address: stop.address,
+    date: state.draft.date,
+    from: stop.lockedStart ? timeToMinutes(stop.lockedStart) : (row ? row.start : timeToMinutes(state.draft.time)),
+    duration: stop.duration,
+    comment: stop.comment || '',
+    callback: stop.callback || '',
+    prevDestModal: null,
+  };
+  render();
 }
 
 /* ---------------- Toast ---------------- */
@@ -3080,21 +3071,7 @@ function bindBuilderEvents() {
   document.querySelectorAll('.stop-card [data-edit-stop]').forEach(el => {
     el.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-edit-stop'));
-      if (!stop) return;
-      const row = computeSchedule(state.draft).find(r => r.stop.id === stop.id);
-      state.modal = {
-        type: 'visitRequest',
-        editStopId: stop.id,
-        mls: stop.mls,
-        address: stop.address,
-        date: state.draft.date,
-        from: stop.lockedStart ? timeToMinutes(stop.lockedStart) : (row ? row.start : timeToMinutes(state.draft.time)),
-        duration: stop.duration,
-        comment: stop.comment || '',
-        callback: stop.callback || '',
-        prevDestModal: null,
-      };
-      render();
+      if (stop) openVisitEditor(stop);
     };
   });
   const slotAction = (attr, fn) => document.querySelectorAll(`[${attr}]`).forEach(el => {
@@ -3724,15 +3701,6 @@ function bindModalEvents() {
   }
   if (state.modal.type === 'editBuyer') bindEditBuyerModalEvents();
   if (state.modal.type === 'editStop') {
-    const saveStop = document.getElementById('btn-save-edit-stop');
-    if (saveStop) saveStop.onclick = () => {
-      const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
-      stop.duration = +document.getElementById('edit-stop-duration').value;
-      setStopConfirmation(stop, document.getElementById('edit-stop-status').value === 'confirmed');
-      state.modal = null;
-      markDirtyIfSent();
-      render();
-    };
     const savePause = document.getElementById('btn-save-edit-pause');
     if (savePause) savePause.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
@@ -4022,10 +3990,9 @@ function bindDestinationModalEvents() {
   });
   const editAnchor = document.querySelector('[data-edit-anchor]');
   if (editAnchor) editAnchor.onclick = () => {
-    const stopId = state.insertBeforeId;
+    const stop = state.draft.stops.find(s => s.id === state.insertBeforeId);
     state.insertBeforeId = null;
-    state.modal = { type: 'editStop', stopId };
-    render();
+    if (stop) openVisitEditor(stop);
   };
   const addCustom = document.getElementById('btn-add-custom-stop');
   if (addCustom) addCustom.onclick = () => {
