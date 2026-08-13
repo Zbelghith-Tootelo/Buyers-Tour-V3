@@ -943,7 +943,23 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   font-size: 13px; font-weight: 700;
   border: 2px solid var(--blanc); box-shadow: var(--shadow-base);
 }
-.tour-pin.is-start { background: var(--succes); }
+/* Note de départ, en tête de la liste des arrêts. Elle n'est pas un arrêt : pas
+   de carte, pas de poignée, pas d'actions — une ligne qui répond à « je pars à
+   quelle heure ? ». Le liseré vert la rattache au repère de départ sur la carte. */
+.departure-note {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-left: 4px solid var(--succes); border-radius: var(--radius-md);
+  background: var(--succes-bg); padding: 10px 14px; margin-bottom: 10px;
+}
+.departure-icon { display: flex; color: #17792a; flex-shrink: 0; margin-top: 2px; }
+.departure-icon svg { width: 16px; height: 16px; }
+.departure-text { font-size: 13.5px; line-height: 1.45; color: var(--texte-secondaire); }
+.departure-text strong { color: #17792a; }
+
+/* Le départ n'est pas une étape numérotée : il porte un pictogramme, pas un
+   chiffre, et se distingue par la forme autant que par la couleur. */
+.tour-pin.is-start { background: var(--succes); border-radius: var(--radius-md); }
+.tour-pin.is-start svg { width: 15px; height: 15px; }
 
 /* Repère de direction posé sur le tracé, orienté au cap du segment. */
 .route-arrow-wrap { background: none; border: none; }
