@@ -3,7 +3,9 @@
 Prototype cliquable du flow **Tour de visites** pour Immocontact / Touchbase Real Estate.
 Données fictives, aucune dépendance — HTML/CSS/JS statique.
 
-L'historique complet est conservé : la V2 reste accessible au tag [`v2`](../../releases/tag/v2).
+Ce dépôt ne contient que la V3. La version précédente vit dans son propre dépôt,
+[Buyers-Tour-V2](https://github.com/Zbelghith-Tootelo/Buyers-Tour-V2), qui reste
+en ligne — les deux se montrent côte à côte.
 
 ## Le modèle
 
