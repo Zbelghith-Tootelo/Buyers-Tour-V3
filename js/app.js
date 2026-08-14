@@ -1204,6 +1204,19 @@ function computeSchedule(draft) {
 // L'heure du tour n'amorce le calendrier que si le premier arrêt ne porte pas
 // déjà la sienne. Dès qu'il en porte une — demandée ou confirmée — computeSchedule
 // part de cette heure-là et ignore `draft.time` : le champ n'a plus aucun effet.
+// Un bouton grisé sans motif oblige à deviner ce qui manque. La raison voyage
+// donc avec lui : `title` pour la souris, `aria-describedby` pour le lecteur
+// d'écran — qui lit la description d'un contrôle désactivé, alors que le focus
+// ne s'y pose pas. Rend `{ a: attributs, n: note }` ; les deux sont vides quand
+// l'action est disponible, et le bouton reste tel quel.
+function whenBlocked(id, disponible, raison) {
+  if (disponible) return { a: '', n: '' };
+  return {
+    a: ` disabled title="${esc(raison)}" aria-describedby="${id}-why"`,
+    n: `<span id="${id}-why" class="sr-only">${esc(raison)}</span>`,
+  };
+}
+
 function applyTourDate(date) {
   state.draft.date = date;
   markDirtyIfSent();
@@ -1466,6 +1479,14 @@ function renderContactScreen() {
   // coordonnées qu'au moment où le tour doit partir chez lui.
   const noEmail = sharing && selected && !(selected.email || '').trim();
   const canSend = canSave && !noEmail;
+  // Deux blocages différents sur le même bouton : personne de choisi, ou
+  // quelqu'un de choisi mais sans courriel. Le motif suit le cas réel — le
+  // second est déjà écrit à l'écran juste dessous, on ne le répète pas.
+  const choisir = 'Sélectionnez un contact dans la liste, ou remplissez la fiche d\'un nouvel acheteur.';
+  const principalWhy = whenBlocked('btn-save-contact', sharing ? canSend : canSave,
+    noEmail ? 'Ajoutez un courriel à ce contact pour lui envoyer le tour.' : choisir);
+  const rattacheWhy = whenBlocked('btn-attach-contact', canSave, choisir);
+
   const emailNote = !noEmail ? '' : `
     <p class="footer-note is-warn">${esc(selected.prenom)} n'a pas encore de courriel.
       <button class="btn-inline" data-edit-buyer>Ajouter un courriel</button> pour lui envoyer le tour.</p>`;
@@ -1488,8 +1509,8 @@ function renderContactScreen() {
       ${searchBlock}
       ${formBlock}
       <div class="form-actions" style="margin-top:${state.showBuyerForm || selected ? '4px' : '0'};">
-        <button class="btn btn-primary" id="btn-save-contact" ${(sharing ? canSend : canSave) ? '' : 'disabled'}>${sharing ? 'Envoyer à l\'acheteur' : naming ? 'Enregistrer' : 'Sauvegarder'}</button>
-        ${sharing ? `<button class="btn btn-outline" id="btn-attach-contact" ${canSave ? '' : 'disabled'}>Enregistrer</button>` : ''}
+        <button class="btn btn-primary" id="btn-save-contact"${principalWhy.a}>${sharing ? 'Envoyer à l\'acheteur' : naming ? 'Enregistrer' : 'Sauvegarder'}</button>${principalWhy.n}
+        ${sharing ? `<button class="btn btn-outline" id="btn-attach-contact"${rattacheWhy.a}>Enregistrer</button>${rattacheWhy.n}` : ''}
         <button class="btn btn-outline" id="btn-cancel-contact">Annuler</button>
       </div>
       ${emailNote}
@@ -1868,6 +1889,13 @@ function renderBuilderScreen() {
           </p>`;
       })();
 
+  // Chaque indisponibilité dit ce qui manque, et le dit au futur : c'est une
+  // étape à franchir, pas un refus.
+  const optiWhy = whenBlocked('btn-optimize', propertyCount >= 2,
+    'Ajoutez au moins deux propriétés : l\'optimisation compare des trajets entre elles.');
+  const carteWhy = whenBlocked('btn-show-map', draft.stops.length > 0,
+    'Ajoutez au moins une destination pour la voir sur la carte.');
+
   const panelStatuses = ['en_cours', 'confirme', 'non_envoye', 'partage'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
     <div class="validation-panel ${status}${status === 'partage' && tally.confirmed < tally.total ? ' is-stale' : ''}">
@@ -1921,8 +1949,8 @@ function renderBuilderScreen() {
     <p class="section-label" style="margin-top:8px;">Tour :</p>
     <div class="action-row">
       <button class="btn btn-outline" id="btn-add-destination">${icon('plus')} Ajouter une destination</button>
-      <button class="btn btn-outline" id="btn-optimize" ${draft.stops.filter(s=>s.type==='property').length < 2 ? 'disabled' : ''}>Optimiser le tour</button>
-      <button class="btn btn-outline" id="btn-show-map" ${draft.stops.length === 0 ? 'disabled' : ''}>Afficher sur la carte</button>
+      <button class="btn btn-outline" id="btn-optimize"${optiWhy.a}>Optimiser le tour</button>${optiWhy.n}
+      <button class="btn btn-outline" id="btn-show-map"${carteWhy.a}>Afficher sur la carte</button>${carteWhy.n}
     </div>
 
     ${departureHtml}
@@ -1948,11 +1976,15 @@ function renderFooterActions(propertyCount, status, tally) {
   // tour de côté pour l'envoyer plus tard. Le second est en secondaire pour que
   // la sortie normale reste évidente.
   if (status === 'brouillon') {
+    const envoiWhy = whenBlocked('btn-send-tour', propertyCount > 0,
+      'Ajoutez au moins une propriété : une demande de visite part chez le courtier qui l\'inscrit.');
+    const gardeWhy = whenBlocked('btn-save-draft', propertyCount > 0,
+      'Un tour sans propriété n\'a rien à enregistrer.');
     return `
-      <button class="btn btn-primary" id="btn-send-tour" ${propertyCount === 0 ? 'disabled' : ''}>
+      <button class="btn btn-primary" id="btn-send-tour"${envoiWhy.a}>
         Envoyer les demandes de visites
-      </button>
-      <button class="btn btn-outline" id="btn-save-draft" ${propertyCount === 0 ? 'disabled' : ''}>Enregistrer</button>
+      </button>${envoiWhy.n}
+      <button class="btn btn-outline" id="btn-save-draft"${gardeWhy.a}>Enregistrer</button>${gardeWhy.n}
       ${del}
     `;
   }
@@ -2172,6 +2204,10 @@ function renderVisitRequestModal() {
   // inscripteur : le bouton nomme cet envoi. Tant que rien n'est parti, il n'y a
   // rien à faire valider — on enregistre, simplement.
   const editing = !!m.editStopId;
+  // Une propriété hors catalogue n'a pas de fiche : sans courtier nommé, la
+  // demande n'a personne à qui partir.
+  const vrWhy = whenBlocked('vr-save', !(m.external && !courtierEntry(courtier)),
+    'Nommez le courtier inscripteur : sans lui, la demande n\'a pas de destinataire.');
   // C'est l'arrêt qui est engagé ou non, pas le tour : dans un tour déjà parti,
   // une propriété ajoutée depuis reste au bac à sable jusqu'à son propre envoi.
   const editedStop = editing ? state.draft.stops.find(s => s.id === m.editStopId) : null;
@@ -2281,7 +2317,7 @@ function renderVisitRequestModal() {
           </div>
         </div>
         <div class="modal-footer"${editing ? ' style="display:flex;flex-direction:column;gap:10px;"' : ''}>
-          <button class="btn btn-primary${editing ? ' btn-block' : ''}" id="vr-save" ${editing ? '' : 'style="min-width:220px;"'} ${m.external && !courtierEntry(courtier) ? 'disabled' : ''}>${saveLabel}</button>
+          <button class="btn btn-primary${editing ? ' btn-block' : ''}" id="vr-save" ${editing ? '' : 'style="min-width:220px;"'}${vrWhy.a}>${saveLabel}</button>${vrWhy.n}
           ${editing ? `<button class="btn btn-outline btn-block" id="modal-cancel">Annuler</button>` : ''}
           ${m.external && !courtierEntry(courtier)
             ? `<p class="helper-text" style="margin:10px 0 0;">Choisissez le courtier inscripteur : c'est lui qui recevra la demande de visite.</p>`
@@ -2302,6 +2338,11 @@ function renderSendRequestsModal() {
   // Nommer l'acheteur n'est pas vouloir le prévenir. Tant qu'aucune visite
   // n'est confirmée, le tour n'a rien à lui annoncer : on refuse d'offrir un
   // courriel irréversible comme chemin de moindre résistance (Nielsen #5).
+  // L'autre variante de ce bouton porte déjà le motif dans son libellé — elle
+  // devient « Choisissez au moins une propriété ». Ici le libellé nomme le
+  // destinataire, donc le motif passe par la description.
+  const choixWhy = whenBlocked('btn-send-broker-buyer', n > 0, 'Cochez au moins une propriété à envoyer.');
+  const seulWhy = whenBlocked('btn-send-broker-only', n > 0, 'Cochez au moins une propriété à envoyer.');
   const anyConfirmed = state.draft.stops.some(s => s.type === 'property' && effectiveStopStatus(s) === 'confirmed');
   const buyer = anyConfirmed ? state.draft.buyer : null;
 
@@ -2332,8 +2373,8 @@ function renderSendRequestsModal() {
         </div>
         <div class="modal-footer" style="display:flex;flex-direction:column;gap:10px;">
           ${buyer ? `
-            <button class="btn btn-primary btn-block" id="btn-send-broker-buyer" ${n ? '' : 'disabled'}>Envoyer aux courtiers et à ${esc(buyer.prenom)}</button>
-            <button class="btn btn-outline btn-block" id="btn-send-broker-only" ${n ? '' : 'disabled'}>Envoyer aux courtiers seulement</button>
+            <button class="btn btn-primary btn-block" id="btn-send-broker-buyer"${choixWhy.a}>Envoyer aux courtiers et à ${esc(buyer.prenom)}</button>${choixWhy.n}
+            <button class="btn btn-outline btn-block" id="btn-send-broker-only"${seulWhy.a}>Envoyer aux courtiers seulement</button>${seulWhy.n}
           ` : `
             <button class="btn btn-primary btn-block" id="btn-send-broker-only" ${n ? '' : 'disabled'}>
               ${n ? `Envoyer ${n} demande${n > 1 ? 's' : ''}` : 'Choisissez au moins une propriété'}
@@ -2738,6 +2779,8 @@ function renderMapScreen() {
     .map(({ stop, start }) => renderStopCard(stop, start, { variant: 'map' })).join('');
 
   const canOptimize = totals.count >= 2;
+  const optiMapWhy = whenBlocked('btn-optimize-map', canOptimize,
+    'Ajoutez au moins deux propriétés : l\'optimisation compare des trajets entre elles.');
   // Kick the routing off here rather than in buildTourMap: ensureRouteGeometry
   // marks the signature 'loading' synchronously, before its first await, so the
   // status read just below is accurate on the very first paint.
@@ -2764,9 +2807,9 @@ function renderMapScreen() {
 
     <!-- Même action que dans le tour, donc même nom : « Optimiser par distance »
          décrivait l'algorithme, pas ce que le courtier obtient. -->
-    <button class="btn btn-outline btn-block" id="btn-optimize-map" style="margin-top:16px;" ${canOptimize ? '' : 'disabled'}>
+    <button class="btn btn-outline btn-block" id="btn-optimize-map" style="margin-top:16px;"${optiMapWhy.a}>
       Optimiser le tour
-    </button>
+    </button>${optiMapWhy.n}
 
     <!-- Le titre suit ce que le modèle autorise : il annonçait « Réordonner »
          au-dessus d'arrêts tous épinglés, poignées comprises. -->
