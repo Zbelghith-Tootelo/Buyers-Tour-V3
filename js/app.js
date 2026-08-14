@@ -1204,6 +1204,12 @@ function computeSchedule(draft) {
 // L'heure du tour n'amorce le calendrier que si le premier arrêt ne porte pas
 // déjà la sienne. Dès qu'il en porte une — demandée ou confirmée — computeSchedule
 // part de cette heure-là et ignore `draft.time` : le champ n'a plus aucun effet.
+function applyTourDate(date) {
+  state.draft.date = date;
+  markDirtyIfSent();
+  render();
+}
+
 function tourStartIsFixed(draft) {
   const first = draft.stops[0];
   return !!(first && first.type === 'property' && first.locked && first.lockedStart);
@@ -1896,7 +1902,12 @@ function renderBuilderScreen() {
       <div class="field">
         <label class="field-label">Date</label>
         <div class="input-with-icon">
-          <input type="date" class="input" id="builder-date" value="${draft.date}">
+          <!-- La borne guide le sélecteur natif sans jamais descendre sous la
+               valeur en place : un tour déjà daté d'hier — rouvert, ou
+               simplement consulté — ne doit pas s'afficher en erreur pour une
+               date qu'il porte légitimement. -->
+          <input type="date" class="input" id="builder-date" value="${draft.date}"
+            min="${draft.date < todayPlus(0) ? draft.date : todayPlus(0)}">
         </div>
       </div>
       <div class="field">
@@ -2013,6 +2024,16 @@ function renderModal() {
       ? 'Cette action supprimera définitivement ce tour et annulera les demandes de visites déjà envoyées aux courtiers inscripteurs. Cette action est irréversible.'
       : 'Cette action supprimera définitivement ce tour de visites. Cette action est irréversible.';
     root.innerHTML = renderConfirmModal('Supprimer le tour', body, 'btn-confirm-delete-tour');
+    return;
+  }
+  // Nielsen #5 dit prévenir, pas interdire : réencoder un tour d'hier est un
+  // besoin réel. On ne bloque donc pas la date passée — on nomme sa
+  // conséquence, qui est que le tour quitte la liste où le courtier le cherche.
+  if (state.modal.type === 'confirmPastDate') {
+    const body = `Ce tour sera daté du <strong>${esc(formatDateLong(state.modal.date))}</strong>.
+      Comme cette date est passée, il quittera « À venir » et sera rangé dans <strong>« Passé »</strong>.
+      Vous pourrez l'en sortir à tout moment depuis le tour lui-même.`;
+    root.innerHTML = renderConfirmModal('Dater ce tour dans le passé ?', body, 'btn-confirm-past-date', 'Dater dans le passé', 'primary');
     return;
   }
   if (state.modal.type === 'optimizePlan') { root.innerHTML = renderOptimizePlanModal(); return; }
@@ -2397,14 +2418,17 @@ function renderOptimizePlanModal() {
     </div>`;
 }
 
-function renderConfirmModal(title, body, confirmId) {
+// Le bouton de confirmation nomme l'acte plutôt que d'être un « Oui » : c'est
+// le dernier endroit où l'utilisateur peut se rendre compte de ce qu'il fait.
+// Rouge pour ce qui détruit, principal pour ce qui range.
+function renderConfirmModal(title, body, confirmId, confirmLabel = 'Supprimer', tone = 'danger') {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
         <div class="modal-head"><h2 id="modal-title">${esc(title)}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
-        <div class="modal-body"><p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;">${esc(body)}</p></div>
+        <div class="modal-body"><p style="font-size:14.5px;color:var(--texte-secondaire);line-height:1.5;">${body}</p></div>
         <div class="modal-footer" style="display:flex;gap:10px;">
-          <button class="btn btn-danger" id="${confirmId}">Supprimer</button>
+          <button class="btn btn-${tone}" id="${confirmId}">${esc(confirmLabel)}</button>
           <button class="btn btn-outline" id="modal-cancel">Annuler</button>
         </div>
       </div>
@@ -3173,7 +3197,22 @@ function bindBuilderEvents() {
   };
 
   const dateInput = document.getElementById('builder-date');
-  if (dateInput) dateInput.onchange = () => { state.draft.date = dateInput.value; markDirtyIfSent(); render(); };
+  if (dateInput) dateInput.onchange = () => {
+    const valeur = dateInput.value;
+    // Un champ date vidé au clavier ne veut rien dire pour un tour : on remet
+    // la valeur en place plutôt que de laisser un tour sans jour.
+    if (!valeur) { dateInput.value = state.draft.date; return; }
+    // Dater dans le passé range le tour hors de « À venir ». C'est un choix
+    // légitime — réencoder un tour d'hier — mais qui doit être fait sciemment :
+    // sans confirmation, le tour quittait la liste courante sans un mot, et le
+    // courtier revenait sur un écran où son travail n'était plus.
+    if (valeur < todayPlus(0) && state.draft.date >= todayPlus(0)) {
+      state.modal = { type: 'confirmPastDate', date: valeur };
+      render();
+      return;
+    }
+    applyTourDate(valeur);
+  };
   const timeSelect = document.getElementById('builder-time');
   if (timeSelect) timeSelect.onchange = () => { state.draft.time = timeSelect.value; markDirtyIfSent(); render(); };
 
@@ -3876,6 +3915,19 @@ function bindModalEvents() {
     if (brokerOnly) brokerOnly.onclick = () => { state.modal = null; saveDraftToTour(true, false); };
     const brokerBuyer = document.getElementById('btn-send-update-broker-buyer');
     if (brokerBuyer) brokerBuyer.onclick = () => { state.modal = null; saveDraftToTour(true, true); };
+  }
+  if (state.modal.type === 'confirmPastDate') {
+    const btn = document.getElementById('btn-confirm-past-date');
+    if (btn) btn.onclick = () => {
+      const date = state.modal.date;
+      state.modal = null;
+      applyTourDate(date);
+      // Le tour vient de changer d'onglet : le dire ici évite qu'il paraisse
+      // perdu quand le courtier reviendra à la liste.
+      showToast('Tour daté dans le passé. Il est rangé dans « Passé ».');
+    };
+    // Renoncer laisse le champ afficher la date saisie : le render de fermeture
+    // le repeint depuis le brouillon, qui n'a pas bougé.
   }
   if (state.modal.type === 'confirmDeleteTour') {
     const btn = document.getElementById('btn-confirm-delete-tour');
