@@ -1539,6 +1539,103 @@ function renderBuyerForm() {
   `;
 }
 
+/* ----- Carte d'arrêt -----
+   Un seul gabarit pour les deux écrans qui l'affichent. Il en existait deux —
+   celui du tour et celui de la carte — et ils avaient déjà divergé : le libellé
+   « Heure de visite » avait survécu d'un côté, les pastilles de statut
+   manquaient de l'autre. Une visite annulée était donc invisible sur l'écran
+   où l'on réorganise justement la journée.
+
+   `variant` ne fait varier que ce qui dépend de l'écran : les actions n'ont de
+   sens que là où on peut agir. Le reste — glyphe, adresse, horaire, statut —
+   décrit le même objet, donc se rend pareil (loi de similarité). */
+function renderStopCard(stop, start, { variant = 'builder', sameSlot = false } = {}) {
+  const actionable = variant === 'builder';
+
+  if (stop.type === 'pause') {
+    return `
+      <div class="stop-card" draggable="true" data-stop-id="${stop.id}">
+        <span class="drag-handle">${icon('drag')}</span>
+        <div class="stop-icon pause">${icon('pause')}</div>
+        <div class="stop-body">
+          <p class="stop-address">Pause : Durée ${stop.duration} minutes</p>
+          <p class="stop-meta">Débute vers ${minutesToLabel(start)}</p>
+        </div>
+        ${!actionable ? '' : `
+        <div class="stop-actions">
+          <button class="btn-icon" data-edit-pause="${stop.id}" title="Modifier la pause" aria-label="Modifier la pause de ${stop.duration} minutes">${icon('pencil')}</button>
+          <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer la pause" aria-label="Retirer du tour la pause de ${stop.duration} minutes">${icon('trash')}</button>
+        </div>`}
+      </div>`;
+  }
+
+  const st = effectiveStopStatus(stop);
+  const stMeta = STOP_STATUSES[st];
+  const reportPending = !!(stop.report && !stop.report.sent);
+
+  // Les états de l'arrêt sont des pastilles autonomes, pas une phrase à
+  // séparateurs. Une puce « • » est de la ponctuation : dès que la ligne se
+  // casse, elle se retrouve en tête de ligne et se lit comme un marqueur de
+  // liste. Une pastille, elle, se casse sans se dénaturer.
+  const suffix = st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : '';
+  const nextSt = STOP_STATUS_CYCLE[(STOP_STATUS_CYCLE.indexOf(st) + 1) % STOP_STATUS_CYCLE.length];
+  // Rien à simuler tant que la demande n'est pas partie, ni sur un écran qui
+  // ne branche pas le simulateur.
+  const canSim = actionable && flag('simulateConfirmation') && st !== 'sandbox';
+  const statusChip = !stMeta.label ? ''
+    : canSim
+      ? `<button class="stop-flag tone-${stMeta.tone} is-sim" data-sim-status="${stop.id}"
+          title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
+          ${esc(stMeta.label)}${suffix}${icon('sync')}</button>`
+      : `<span class="stop-flag tone-${stMeta.tone}">${esc(stMeta.label)}${suffix}</span>`;
+  // Un compte rendu mis de côté ne se retrouve que si l'arrêt le dit : sans ça,
+  // « Visité » couvre autant celui qui est parti chez le vendeur que celui qui
+  // attend encore, et le courtier n'a rien pour trier après coup.
+  const reportChip = !stop.visited ? ''
+    : reportPending
+      ? `<span class="stop-flag tone-warn">${icon('star')} Compte rendu à envoyer</span>`
+      : `<span class="stop-flag tone-ok">${icon('star')} Visité</span>`;
+  const extChip = !stop.external ? ''
+    : `<span class="stop-flag tone-muted" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>`;
+  // Sur la carte, seul le statut compte : on y réorganise un trajet, pas un
+  // compte rendu. Mais le statut, lui, y est indispensable — c'est lui qui dit
+  // quelle étape est en train de tomber.
+  const flags = (actionable ? [statusChip, reportChip, extChip] : [statusChip]).filter(Boolean).join('');
+
+  const pinnedTitle = stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`;
+  const reportTitle = !stop.visited ? 'Faire le compte rendu de visite'
+    : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite';
+
+  return `
+    <div class="stop-card${sameSlot ? ' same-slot' : ''}${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
+      <span class="drag-handle" ${pinnedTitle}>${icon('drag')}</span>
+      <div class="stop-icon">${stopGlyph(st)}</div>
+      <div class="stop-body">
+        <p class="stop-address">${esc(stop.address)}</p>
+        <p class="stop-meta">${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}</p>
+        ${flags ? `<div class="stop-flags">${flags}</div>` : ''}
+      </div>
+      ${!actionable ? '' : `
+      <div class="stop-actions">
+        <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
+             paragraphe lui vole son bord gauche. Son libellé est masqué en
+             desktop, donc absent de l'arbre d'accessibilité — d'où l'aria-label,
+             sans lequel le bouton n'aurait aucun nom sur la moitié des écrans. -->
+        <button class="pick-btn${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
+          aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
+          aria-label="Choix de l'acheteur — ${esc(stop.address)}"
+          title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}<span class="pick-label">Choix de l'acheteur</span></button>
+        <button class="btn-icon" data-edit-stop="${stop.id}" title="Modifier la visite" aria-label="Modifier la visite du ${esc(stop.address)}">${icon('pencil')}</button>
+        <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour" aria-label="Retirer ${esc(stop.address)} du tour">${icon('trash')}</button>
+        ${st === 'sandbox'
+          // Envoyer et rendre compte ne coexistent jamais dans le temps : la
+          // troisième place revient à celui des deux qui a un sens ici.
+          ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}" aria-label="Envoyer la demande de visite du ${esc(stop.address)} à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
+          : `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${reportTitle}" aria-label="${reportTitle} — ${esc(stop.address)}">${icon('star')}</button>`}
+      </div>`}
+    </div>`;
+}
+
 /* ----- Screen: builder ----- */
 
 function renderBuilderScreen() {
@@ -1638,91 +1735,12 @@ function renderBuilderScreen() {
         </div>`;
     }
 
-    let card;
+    // La carte est la même partout ; seul ce qui se décide sous elle appartient
+    // à cet écran.
+    const card = renderStopCard(stop, start, { variant: 'builder', sameSlot: sharesSlot || opensSlot });
     let answerHtml = '';
-    if (stop.type === 'pause') {
-      card = `
-        <div class="stop-card" draggable="true" data-stop-id="${stop.id}">
-          <span class="drag-handle">${icon('drag')}</span>
-          <div class="stop-icon pause">${icon('pause')}</div>
-          <div class="stop-body">
-            <p class="stop-address">Pause : Durée ${stop.duration} minutes</p>
-            <p class="stop-meta">Débute vers ${minutesToLabel(start)}</p>
-          </div>
-          <div class="stop-actions">
-            <button class="btn-icon" data-edit-pause="${stop.id}">${icon('pencil')}</button>
-            <button class="btn-icon danger" data-remove-stop="${stop.id}">${icon('trash')}</button>
-          </div>
-        </div>`;
-    } else {
+    if (stop.type !== 'pause') {
       const st = effectiveStopStatus(stop);
-      const stMeta = STOP_STATUSES[st];
-      const reportPending = !!(stop.report && !stop.report.sent);
-
-      // Les états de l'arrêt sont des pastilles autonomes, pas une phrase à
-      // séparateurs. Une puce « • » est de la ponctuation : dès que la ligne se
-      // casse, elle se retrouve en tête de ligne et se lit comme un marqueur de
-      // liste. Une pastille, elle, se casse sans se dénaturer — et deux faits
-      // de natures différentes (ce que le courtier a répondu, ce qu'il me reste
-      // à faire) ne se lisent plus comme une seule information.
-      const suffix = st === 'proposed' && stop.proposedStart ? ` — ${stop.proposedStart.replace(':', 'h')}` : '';
-      const nextSt = STOP_STATUS_CYCLE[(STOP_STATUS_CYCLE.indexOf(st) + 1) % STOP_STATUS_CYCLE.length];
-      // Rien à simuler tant que la demande n'est pas partie : le simulateur
-      // joue la réponse d'un courtier qui n'a encore rien reçu.
-      const canSim = flag('simulateConfirmation') && st !== 'sandbox';
-      const statusChip = !stMeta.label ? ''
-        : canSim
-          ? `<button class="stop-flag tone-${stMeta.tone} is-sim" data-sim-status="${stop.id}"
-              title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
-              ${esc(stMeta.label)}${suffix}${icon('sync')}</button>`
-          : `<span class="stop-flag tone-${stMeta.tone}">${esc(stMeta.label)}${suffix}</span>`;
-      // Un compte rendu mis de côté ne se retrouve que si l'arrêt le dit : sans
-      // ça, « Visité » couvre autant celui qui est parti chez le vendeur que
-      // celui qui attend encore, et le courtier n'a rien pour trier après coup.
-      const reportChip = !stop.visited ? ''
-        : reportPending
-          ? `<span class="stop-flag tone-warn">${icon('star')} Compte rendu à envoyer</span>`
-          : `<span class="stop-flag tone-ok">${icon('star')} Visité</span>`;
-      const extChip = !stop.external ? ''
-        : `<span class="stop-flag tone-muted" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>`;
-      const flags = [statusChip, reportChip, extChip].filter(Boolean).join('');
-
-      card = `
-        <div class="stop-card${sharesSlot || opensSlot ? ' same-slot' : ''}${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
-          <span class="drag-handle" ${stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`}>${icon('drag')}</span>
-          <div class="stop-icon">
-            ${stopGlyph(st)}
-          </div>
-          <div class="stop-body">
-            <p class="stop-address">${esc(stop.address)}</p>
-            <p class="stop-meta">${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}</p>
-            ${flags ? `<div class="stop-flags">${flags}</div>` : ''}
-          </div>
-          <div class="stop-actions">
-            <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
-                 paragraphe lui vole son bord gauche. Ici il porte son nom quand
-                 la place le permet, au lieu d'un cercle muet. -->
-            <!-- Le libellé est masqué en desktop, donc absent de l'arbre
-                 d'accessibilité : sans aria-label le bouton n'aurait aucun nom
-                 sur la moitié des écrans. -->
-            <button class="pick-btn${stop.buyerPick ? ' is-on' : ''}" data-toggle-pick="${stop.id}"
-              aria-pressed="${stop.buyerPick ? 'true' : 'false'}"
-              aria-label="Choix de l'acheteur — ${esc(stop.address)}"
-              title="${stop.buyerPick ? 'Choisie par l\'acheteur — cliquez pour retirer la marque' : 'Marquer comme choisie par l\'acheteur'}">${icon('check')}<span class="pick-label">Choix de l'acheteur</span></button>
-            <button class="btn-icon" data-edit-stop="${stop.id}" title="Modifier la visite" aria-label="Modifier la visite du ${esc(stop.address)}">${icon('pencil')}</button>
-            <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour" aria-label="Retirer ${esc(stop.address)} du tour">${icon('trash')}</button>
-            ${st === 'sandbox'
-              // Envoyer et rendre compte ne coexistent jamais dans le temps :
-              // la troisième place revient à celui des deux qui a un sens ici.
-              ? `<button class="btn-icon send-request" data-send-stop="${stop.id}" title="Envoyer la demande de visite à ${esc(stop.courtier || 'ce courtier inscripteur')}" aria-label="Envoyer la demande de visite du ${esc(stop.address)} à ${esc(stop.courtier || 'ce courtier inscripteur')}">${icon('send')}</button>`
-              : (() => {
-                  const t = !stop.visited ? 'Faire le compte rendu de visite'
-                    : reportPending ? 'Reprendre le compte rendu et l\'envoyer' : 'Voir le compte rendu de visite';
-                  return `<button class="btn-icon toggle-visited ${!stop.visited ? '' : reportPending ? 'todo' : 'active'}" data-toggle-visited="${stop.id}" title="${t}" aria-label="${t} — ${esc(stop.address)}">${icon('star')}</button>`;
-                })()}
-          </div>
-        </div>`;
-
       // Une réponse qui n'est pas « confirmée » demande un arbitrage. La
       // décision se prend sous l'arrêt concerné plutôt que dans une liste à
       // part : elle se lit dans le contexte de l'horaire qu'elle affecte.
@@ -2653,25 +2671,8 @@ function renderMapScreen() {
   const rows = computeSchedule(draft);
   const totals = routeTotals(draft.stops);
 
-  const stopsHtml = draft.stops.length === 0 ? '' : rows.map(({ stop, start }) => {
-    const label = stop.type === 'pause'
-      ? `Pause : Durée ${stop.duration} minutes`
-      : esc(stop.address);
-    const meta = stop.type === 'pause'
-      ? `Débute vers ${minutesToLabel(start)}`
-      : `Heure de visite : ${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}`;
-    return `
-      <div class="stop-card${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
-        <span class="drag-handle" ${stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`}>${icon('drag')}</span>
-        <div class="stop-icon ${stop.type === 'pause' ? 'pause' : ''}">
-          ${stop.type === 'pause' ? icon('pause') : stopGlyph(effectiveStopStatus(stop))}
-        </div>
-        <div class="stop-body">
-          <p class="stop-address">${label}</p>
-          <p class="stop-meta">${meta}</p>
-        </div>
-      </div>`;
-  }).join('');
+  const stopsHtml = draft.stops.length === 0 ? '' : rows
+    .map(({ stop, start }) => renderStopCard(stop, start, { variant: 'map' })).join('');
 
   const canOptimize = totals.count >= 2;
   // Kick the routing off here rather than in buildTourMap: ensureRouteGeometry
