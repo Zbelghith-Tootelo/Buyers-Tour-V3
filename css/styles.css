@@ -1,0 +1,1072 @@
+:root {
+  --bleu-principal: #213163;
+  --bleu-principal-dark: #161F3E;
+  --bleu-nav-10: #EEF0F5;
+  --bleu-secondaire: #0066DC;
+  --bleu-action-10: #EAF3FB;
+  --bleu-action-dark: #004FA9;
+  --rouge-principal: #C8102E;
+  --rouge-10: #FAE8EB;
+  --rouge-dark: #9A0C22;
+  --texte-principal: #111111;
+  --texte-secondaire: #4A4A4A;
+  --bordures: #E6EBF0;
+  --lumiere-principale: #F3F8FF;
+  --neutre-surface: #F0F1F2;
+  --blanc: #FFFFFF;
+  --succes: #28A745;
+  --succes-bg: #E8F5E9;
+  --attention: #F59E0B;
+  --attention-bg: #FEF3C7;
+
+  --font-family: 'Inter', Arial, Helvetica, sans-serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.08);
+  --shadow-base: 0 2px 8px rgba(0,0,0,0.10);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.14);
+}
+
+* { box-sizing: border-box; }
+
+/* Safety net: any <svg> icon without an explicit size rule falls back to this
+   instead of the browser's intrinsic default (which can render at ~300x150px
+   and blow up buttons/rows). More specific rules below override this. */
+svg { width: 18px; height: 18px; display: block; flex-shrink: 0; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  color: var(--texte-principal);
+  background: var(--lumiere-principale);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+a { color: inherit; text-decoration: none; }
+
+/* ---------- Layout ---------- */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--lumiere-principale);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 20px 24px 30px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebar-top { margin-bottom: 19px; }
+
+.logo { display: flex; align-items: center; }
+/* Hauteur fixe, largeur libre : les deux logotypes de marque n'ont pas le même
+   rapport, et une largeur imposée écraserait le plus court. */
+.logo img { display: block; height: 31px; width: auto; }
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--bleu-principal);
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nav-item:hover { background: rgba(33, 49, 99, 0.06); }
+
+.nav-item.active {
+  background: var(--bleu-principal);
+  color: var(--blanc);
+}
+
+.nav-item--muted { color: var(--texte-secondaire); font-weight: 400; }
+
+.nav-icon { width: 24px; height: 24px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.nav-icon img { max-width: 24px; max-height: 24px; display: block; }
+
+.nav-badge {
+  margin-left: auto;
+  background: var(--rouge-principal);
+  color: var(--blanc);
+  font-size: 14px;
+  font-weight: 600;
+  width: 25px;
+  height: 25px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-item.active .nav-badge { background: var(--blanc); color: var(--bleu-principal); }
+
+.sidebar-bottom { display: flex; flex-direction: column; gap: 16px; }
+
+.sidebar-flag {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--rouge-principal);
+  font-weight: 400;
+  line-height: 15px;
+  padding: 0 10px;
+}
+.sidebar-flag img { width: 25px; height: 28px; flex-shrink: 0; }
+
+.main-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--blanc);
+  border-radius: 0 0 20px 20px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 40px 20px;
+}
+
+/* Le titre porte maintenant un nom d'acheteur : il doit céder avant les
+   contrôles de droite, pas les pousser hors de l'écran. */
+.topbar-title-group { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-title {
+  font-size: 20px; font-weight: 600; margin: 0; color: var(--texte-principal);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.topbar-back { display: none; background: none; border: none; padding: 0; cursor: pointer; color: var(--texte-principal); flex-shrink: 0; }
+.topbar-back svg { width: 22px; height: 22px; display: block; }
+/* La flèche retour est présente sur tout le parcours ; seule la liste, qui en
+   est la racine, s'en passe. */
+body[data-screen="contact"] .topbar-back,
+body[data-screen="builder"] .topbar-back,
+body[data-screen="map"] .topbar-back,
+body[data-screen="report"] .topbar-back { display: inline-flex; }
+.topbar-back:hover { color: var(--bleu-secondaire); }
+.topbar-back:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+
+.flag-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-md);
+  padding: 6px 10px; font-size: 13px; font-weight: 600; font-family: inherit;
+  color: var(--texte-secondaire); cursor: pointer;
+}
+.flag-btn:hover { background: var(--lumiere-principale); color: var(--bleu-secondaire); border-color: var(--bleu-secondaire); }
+.flag-btn svg { width: 14px; height: 14px; }
+
+/* Choix de plateforme : deux cartes plutôt qu'un segmented control, pour que la
+   phrase d'explication tienne dans la cible cliquable. La sélection ne repose
+   pas sur la seule couleur — la bordure épaissit et aria-pressed suit. */
+.platform-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+.platform-opt {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer;
+  background: var(--blanc); border: 1.5px solid var(--bordures); border-radius: var(--radius-lg);
+  padding: 12px 14px; min-height: 44px; font-family: inherit;
+  transition: border-color 150ms ease-out, background 150ms ease-out;
+}
+.platform-opt:hover { border-color: var(--bleu-secondaire); }
+.platform-opt:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+.platform-opt.active { border-color: var(--bleu-principal); border-width: 2px; background: var(--lumiere-principale); padding: 11.5px 13.5px; }
+.platform-opt-label { font-size: 14.5px; font-weight: 700; color: var(--bleu-principal); }
+.platform-opt-help { font-size: 12.5px; line-height: 1.4; color: var(--texte-secondaire); }
+
+@media (max-width: 768px) {
+  .platform-switch { grid-template-columns: 1fr; }
+}
+
+.flag-row { display: flex; align-items: flex-start; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--bordures); }
+.flag-row:last-child { border-bottom: none; }
+.flag-row-text { flex: 1; min-width: 0; }
+.flag-row-label { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--texte-principal); }
+.flag-row-help { margin: 3px 0 0; font-size: 13px; line-height: 1.45; color: var(--texte-secondaire); }
+.flag-soon {
+  flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--texte-secondaire);
+  background: var(--neutre-surface); border-radius: 999px; padding: 4px 10px; margin-top: 2px;
+}
+
+.switch {
+  flex-shrink: 0; width: 44px; height: 26px; border-radius: 999px; margin-top: 1px;
+  background: var(--bordures); border: none; padding: 3px; cursor: pointer;
+  display: flex; align-items: center; transition: background 150ms ease-out;
+}
+.switch-thumb {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--blanc);
+  box-shadow: var(--shadow-sm); transition: transform 150ms ease-out;
+}
+.switch.on { background: var(--succes); }
+.switch.on .switch-thumb { transform: translateX(18px); }
+.switch:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .switch, .switch-thumb { transition: none; }
+}
+
+.user-info { display: flex; align-items: center; gap: 8px; }
+.user-avatar {
+  width: 30px; height: 30px; border-radius: 8px;
+  object-fit: cover; display: block;
+}
+.user-name { font-size: 14px; font-weight: 500; color: #1A2740; }
+
+.content {
+  flex: 1;
+  padding: 0 40px 40px;
+  max-width: 1080px;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  font-size: 16px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+.btn:active { transform: translateY(1px); }
+.btn svg { width: 16px; height: 16px; }
+
+.btn-primary { background: var(--bleu-principal); color: var(--blanc); }
+.btn-primary:hover { background: var(--bleu-principal-dark); }
+
+.btn-secondary { background: var(--bleu-secondaire); color: var(--blanc); }
+.btn-secondary:hover { background: var(--bleu-action-dark); }
+
+.btn-outline { background: var(--blanc); color: var(--bleu-principal); border: 1px solid var(--bleu-principal); }
+.btn-outline:hover { background: var(--lumiere-principale); }
+
+.btn-danger-outline { background: var(--blanc); color: var(--rouge-principal); border: 1px solid var(--rouge-principal); }
+.btn-danger-outline:hover { background: var(--rouge-10); }
+
+.btn-danger { background: var(--rouge-principal); color: var(--blanc); }
+.btn-danger:hover { background: var(--rouge-dark); }
+
+
+.btn:disabled { background: var(--bordures); color: var(--texte-secondaire); cursor: not-allowed; }
+
+.btn-block { width: 100%; }
+
+.btn-icon {
+  width: 38px; height: 38px; padding: 0; border-radius: var(--radius-lg);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--blanc); border: 1px solid var(--bordures); color: var(--texte-secondaire); cursor: pointer;
+}
+.btn-icon:hover { background: var(--neutre-surface); }
+.btn-icon.danger { color: var(--rouge-principal); border-color: var(--rouge-10); }
+.btn-icon.danger:hover { background: var(--rouge-10); }
+.btn-icon svg { width: 17px; height: 17px; }
+
+.btn-icon.toggle-visited.active { background: var(--succes); border-color: var(--succes); color: var(--blanc); }
+.btn-icon.toggle-visited.active:hover { background: var(--succes); opacity: 0.9; }
+.btn-icon.toggle-visited.todo { background: var(--attention); border-color: var(--attention); color: var(--blanc); }
+.btn-icon.toggle-visited.todo:hover { background: var(--attention); opacity: 0.9; }
+
+/* ---------- Forms ---------- */
+
+.field { margin-bottom: 18px; }
+.field-label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--texte-principal); }
+.field-row { display: flex; gap: 16px; }
+/* min-width: 0 sinon un input date, qui a une largeur intrinsèque, écrase les
+   selects voisins au lieu de partager la place. */
+.field-row .field { flex: 1; min-width: 0; }
+
+.input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--bordures);
+  border-radius: var(--radius-lg);
+  padding: 0 14px;
+  font-size: 15px;
+  color: var(--texte-principal);
+  background: var(--blanc);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.input::placeholder { color: #9AA1A9; }
+.input:focus { border: 2px solid var(--bleu-secondaire); padding: 0 13px; }
+
+.input-with-icon { position: relative; }
+.input-with-icon .input { padding-right: 42px; }
+.input-with-icon svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--texte-secondaire); pointer-events: none; }
+
+.select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234A4A4A' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer; }
+
+.input-group { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.input-group .input { flex: 1; }
+
+.input-actions { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; gap: 6px; }
+
+.select-icon-btn {
+  width: 30px; height: 30px; border-radius: 999px; border: none; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+}
+.select-icon-btn.add { background: var(--bleu-action-10); color: var(--bleu-secondaire); }
+.select-icon-btn.help { background: var(--neutre-surface); color: var(--texte-secondaire); }
+.select-icon-btn.remove { background: var(--neutre-surface); color: var(--texte-secondaire); }
+.select-icon-btn svg { width: 15px; height: 15px; }
+
+/* ---------- Cards / Panels ---------- */
+
+.panel {
+  background: var(--blanc);
+  border: 1px solid var(--bordures);
+  border-radius: var(--radius-xl);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; cursor: pointer; }
+.panel-header h3 { font-size: 15px; font-weight: 600; margin: 0; }
+.panel-header svg { width: 16px; height: 16px; color: var(--texte-secondaire); }
+.status-check { width: 24px; height: 24px; border-radius: 999px; background: var(--succes-bg); color: var(--succes); display: flex; align-items: center; justify-content: center; }
+.status-check svg { width: 14px; height: 14px; }
+
+/* ---------- Tabs ---------- */
+
+.tabs-toggle { display: flex; height: 42px; margin-bottom: 28px; }
+.tabs-toggle button { flex: 1; border: 1px solid #D5DDE6; background: var(--blanc); color: #1A2740; font-size: 14px; font-weight: 500; cursor: pointer; }
+.tabs-toggle button:first-child { border-radius: 10px 0 0 10px; }
+.tabs-toggle button:last-child { border-radius: 0 10px 10px 0; }
+.tabs-toggle button.active { background: var(--bleu-principal); border-color: var(--bleu-principal); color: var(--blanc); }
+
+.search-bar { position: relative; margin-bottom: 28px; }
+.search-bar input { padding-right: 42px; border-color: #D5DDE6; }
+.search-bar input::placeholder { color: #8D93A0; font-size: 14px; }
+.search-bar svg { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #8D93A0; }
+
+/* ---------- Tour list ---------- */
+
+.date-group-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--texte-principal);
+  margin: 16px 0;
+}
+.date-group-label::before, .date-group-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--bordures);
+}
+.date-group-label:first-child { margin-top: 0; }
+
+.tour-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 55px;
+  background: var(--blanc);
+  border: 1px solid var(--bordures);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.tour-card:hover { box-shadow: var(--shadow-base); border-color: #99C2F2; }
+
+.tour-card-icon { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+.tour-card-glyph { width: 30px; height: 30px; }
+
+.tour-card-body { flex: 1; min-width: 0; }
+.tour-card-name { font-size: 16px; font-weight: 700; color: var(--bleu-principal); margin: 0 0 2px; line-height: 1; }
+.tour-card-meta { font-size: 16px; color: var(--bleu-principal); margin: 0; line-height: 1; }
+.tour-card-meta strong { font-weight: 700; }
+
+/* Badge de statut du tour, décliné par ton. */
+.status-chip {
+  display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px;
+  border-radius: var(--radius-md); vertical-align: 2px; margin-left: 6px; letter-spacing: 0.01em;
+}
+.status-chip.draft { background: var(--neutre-surface); color: var(--texte-secondaire); }
+.status-chip.pending { background: var(--attention-bg); color: #8a5a05; }
+.status-chip.ok { background: var(--succes-bg); color: #17792a; }
+/* « Non envoyé » : la balle est dans le camp du courtier, pas dans celui d'un
+   tiers. Le marine le distingue de l'ambre (on attend quelqu'un d'autre) comme
+   du bleu action (c'est parti). */
+.status-chip.todo { background: var(--bleu-nav-10); color: var(--bleu-principal); }
+.status-chip.shared { background: var(--bleu-action-10); color: var(--bleu-action-dark); }
+
+/* Récapitulatif de la validation, en tête du tour. Les compteurs se lisent
+   d'abord, la phrase explique quoi faire ensuite. */
+.validation-panel {
+  border: 1px solid var(--bordures); border-left: 4px solid var(--bleu-secondaire);
+  border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 16px; background: var(--lumiere-principale);
+}
+.validation-panel.confirme { border-left-color: var(--succes); background: var(--succes-bg); }
+/* Les visites sont bien confirmées, mais il reste un geste à faire : liseré
+   marine plutôt que vert, pour ne pas signaler « terminé ». */
+.validation-panel.non_envoye { border-left-color: var(--bleu-principal); background: var(--bleu-nav-10); }
+.validation-counts { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.vcount { font-size: 13.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+.vcount::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.vcount.ok { color: #17792a; }
+.vcount.wait { color: #8a5a05; }
+.vcount.act { color: var(--rouge-principal); }
+.validation-help { margin: 8px 0 0; font-size: 13px; line-height: 1.45; color: var(--texte-secondaire); }
+
+/* Arbitrage d'une réponse, sous l'arrêt qu'elle concerne. */
+.stop-answer {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px;
+  padding: 10px 14px; border-radius: var(--radius-md); border-left: 4px solid;
+  font-size: 13.5px; margin: 6px 0;
+}
+.stop-answer svg { width: 16px; height: 16px; flex-shrink: 0; }
+.stop-answer .banner-text { flex: 1; min-width: 180px; }
+.stop-answer.warn { background: var(--attention-bg); border-color: var(--attention); color: #8a5a05; }
+.stop-answer.danger { background: var(--rouge-10); border-color: var(--rouge-principal); color: var(--rouge-dark); }
+.stop-answer.muted { background: var(--neutre-surface); border-color: var(--texte-secondaire); color: var(--texte-secondaire); }
+.btn-inline {
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  background: var(--blanc); color: inherit; border: 1.5px solid currentColor;
+  border-radius: var(--radius-md); padding: 7px 12px; min-height: 34px;
+}
+.btn-inline:hover { background: var(--lumiere-principale); }
+.btn-inline:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
+.btn-inline.ghost { background: transparent; border-color: transparent; text-decoration: underline; }
+
+/* Créneau simultané. Le bandeau reprend la grille de .stop-answer — même
+   intervalle, même gabarit — mais reste bleu : ce n'est pas une réponse de
+   courtier à traiter, c'est une information destinée au seul courtier acheteur.
+   Une fois le créneau confirmé, il perd son fond et se réduit à une trace. */
+.slot-note {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px;
+  padding: 10px 14px; border-radius: var(--radius-md); border-left: 4px solid var(--bleu-secondaire);
+  background: var(--bleu-action-10); color: var(--bleu-action-dark);
+  font-size: 13.5px; margin: 6px 0;
+}
+.slot-note svg { width: 16px; height: 16px; flex-shrink: 0; }
+.slot-note .banner-text { flex: 1; min-width: 200px; line-height: 1.45; }
+.slot-note strong { font-weight: 700; }
+.slot-note.is-ack {
+  background: transparent; color: var(--texte-secondaire);
+  border-left-color: var(--bordures); padding-top: 6px; padding-bottom: 6px;
+}
+
+/* Les deux visites d'un créneau forment un bloc : le liseré les relie sans
+   ajouter d'encadré autour (loi de continuité). */
+.stop-card.same-slot { border-left: 4px solid var(--bleu-secondaire); }
+
+/* Aperçu de l'optimisation : le gain d'abord, ce qu'il coûte ensuite. */
+.plan-summary { background: var(--lumiere-principale); border: 1px solid var(--bordures); border-radius: var(--radius-lg); padding: 14px 16px; }
+.plan-summary-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13.5px; color: var(--texte-secondaire); }
+.plan-summary-row + .plan-summary-row { margin-top: 6px; }
+.plan-summary-row.is-after { color: var(--bleu-principal); font-weight: 700; font-size: 15px; }
+.plan-summary-value { white-space: nowrap; }
+.plan-delta { margin: 10px 0 0; font-size: 13px; color: var(--texte-secondaire); }
+.plan-delta.is-gain { color: #17792a; font-weight: 700; }
+
+.plan-list { list-style: none; margin: 0; padding: 0; }
+.plan-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0;
+  border-bottom: 1px solid var(--bordures); font-size: 14px;
+}
+.plan-row:last-child { border-bottom: none; }
+.plan-index {
+  width: 22px; height: 22px; border-radius: 999px; background: var(--bleu-principal); color: var(--blanc);
+  font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.plan-label { flex: 1; min-width: 0; font-weight: 600; color: var(--texte-principal); }
+.plan-time { white-space: nowrap; color: var(--bleu-principal); font-size: 13.5px; }
+.plan-old { color: var(--texte-secondaire); text-decoration: line-through; }
+.plan-row.is-same .plan-index { background: var(--neutre-surface); color: var(--texte-secondaire); }
+.plan-row.is-same .plan-label { font-weight: 400; color: var(--texte-secondaire); }
+.plan-unchanged { color: var(--texte-secondaire); font-size: 12px; }
+
+/* Propriété hors catalogue : la demande part par courriel, sans créer de fiche. */
+.ext-chip {
+  display: inline-block; white-space: nowrap; flex-shrink: 0;
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px;
+  border-radius: var(--radius-md); background: var(--neutre-surface); color: var(--texte-secondaire);
+  vertical-align: 1px; letter-spacing: 0.01em;
+}
+
+/* Rappel du tour à partager, en tête de l'étape 4. */
+.share-recap {
+  border: 1px solid var(--bordures); border-radius: var(--radius-lg);
+  padding: 14px 16px; margin-bottom: 18px; background: var(--lumiere-principale);
+}
+.share-recap-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--bleu-principal); }
+.share-recap-meta { margin: 4px 0 0; font-size: 13.5px; color: var(--texte-secondaire); }
+
+/* Explication d'un bouton primaire fermé : un bouton grisé sans raison est un
+   cul-de-sac. */
+.footer-note { margin: -4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--texte-secondaire); }
+/* Sur l'écran acheteur la note suit un groupe de boutons empilés : sans marge
+   elle se lit comme la légende du dernier bouton, qu'elle ne décrit pas. */
+.contact-pane .footer-note { margin-top: 14px; }
+
+
+.tour-card-count { width: 30px; height: 30px; border-radius: 999px; background: var(--bleu-secondaire); color: var(--blanc); font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.tour-card-chevron { color: var(--bleu-principal); flex-shrink: 0; display: flex; align-items: center; }
+.tour-card-chevron svg { width: 18px; height: 18px; }
+
+.empty-state { text-align: center; padding: 56px 20px; color: var(--texte-secondaire); }
+.empty-state svg { width: 46px; height: 46px; color: #C5CBE0; margin-bottom: 14px; }
+.empty-state p { margin: 0 0 4px; font-size: 15px; }
+.empty-state .empty-sub { font-size: 13.5px; }
+
+/* ---------- Buyer chip ---------- */
+
+.buyer-chip { position: relative; }
+.buyer-chip .input { font-weight: 600; padding-right: 84px; cursor: default; background: var(--blanc); }
+
+.link-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); color: var(--bleu-secondaire); font-weight: 600; font-size: 14.5px; cursor: pointer; margin-top: -4px; margin-bottom: 20px; }
+.link-row:hover { background: var(--bleu-action-10); }
+.link-row svg { width: 16px; height: 16px; }
+
+/* ---------- Builder screen ---------- */
+
+.readonly-chip { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); background: var(--blanc); font-weight: 600; color: var(--bleu-secondaire); cursor: pointer; }
+.readonly-chip svg { width: 16px; height: 16px; color: var(--texte-secondaire); }
+
+.action-row { display: flex; gap: 12px; margin: 22px 0 20px; flex-wrap: wrap; }
+.action-row .btn { flex: 1; min-width: 200px; }
+
+.section-label { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+
+.stop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--blanc);
+  border: 1px solid var(--bordures);
+  border-radius: var(--radius-lg);
+  padding: 13px 14px;
+  margin-bottom: 8px;
+}
+.stop-card.dragging { opacity: 0.4; }
+.stop-card.drag-over { border-color: var(--bleu-secondaire); border-style: dashed; }
+
+.drag-handle { cursor: grab; color: #C5CBE0; flex-shrink: 0; width: 18px; height: 18px; touch-action: none; }
+.drag-handle:active { cursor: grabbing; }
+.drag-handle svg { width: 16px; height: 16px; }
+
+.stop-icon { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--lumiere-principale); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+.stop-icon svg { width: 18px; height: 18px; color: var(--bleu-principal); }
+.stop-icon .stop-glyph-confirmed, .stop-icon .stop-glyph-pending, .stop-icon .stop-glyph-refused { width: 30px; height: 24px; }
+
+.stop-icon.pause { background: var(--bleu-action-10); }
+.stop-icon.pause svg { color: var(--bleu-secondaire); }
+
+.stop-body { flex: 1; min-width: 0; }
+.stop-address { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
+.stop-meta { font-size: 13px; color: var(--texte-secondaire); margin: 0; }
+.stop-meta .status-ok { color: var(--succes); font-weight: 600; }
+.stop-meta .status-pending { color: var(--attention); font-weight: 600; }
+/* Les cinq réponses possibles d'un courtier. Le ton ne repose jamais sur la
+   seule couleur : le libellé porte déjà l'information (WCAG 1.4.1). */
+.stop-meta .status-warn { color: #8a5a05; font-weight: 600; }
+.stop-meta .status-danger { color: var(--rouge-principal); font-weight: 600; }
+.stop-meta .status-muted { color: var(--texte-secondaire); font-weight: 600; }
+.stop-meta .status-visited { color: var(--succes); font-weight: 600; display: inline-flex; align-items: flex-start; gap: 3px; }
+.stop-meta .status-visited svg { width: 12px; height: 12px; margin-top: 3px; }
+/* Puce + étiquette forment un bloc : ils passent à la ligne ensemble. */
+.stop-meta .meta-part { display: inline-block; }
+/* Compte rendu mis de côté : la visite a bien eu lieu, mais il reste un geste.
+   Ambre plutôt que vert, pour qu'il ne se lise pas comme terminé. */
+/* L'étoile reste sur la première ligne quand l'étiquette se casse en deux : au
+   centre, elle flottait au milieu d'un bloc de texte. */
+.stop-meta .status-report-todo { color: #8a5a05; font-weight: 600; display: inline-flex; align-items: flex-start; gap: 3px; }
+.stop-meta .status-report-todo svg { width: 12px; height: 12px; margin-top: 3px; }
+
+/* Demo control: clicking the status simulates the listing broker's answer. The
+   dashed underline marks it as a simulation affordance rather than a real
+   business action — only the listing broker confirms a visit. */
+.status-sim {
+  display: inline-flex; align-items: center; gap: 4px; vertical-align: baseline;
+  background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+  border-bottom: 1px dashed var(--bordures);
+}
+.status-sim svg { width: 11px; height: 11px; color: var(--texte-secondaire); opacity: 0; transition: opacity 120ms ease-out; }
+.status-sim:hover svg, .status-sim:focus-visible svg { opacity: 1; }
+.status-sim:hover { border-bottom-color: var(--texte-secondaire); }
+.status-sim:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; border-radius: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .status-sim svg { transition: none; }
+}
+.stop-meta .dot { margin: 0 5px; }
+
+.stop-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.travel-chip { display: flex; align-items: center; gap: 8px; background: var(--bleu-action-10); color: var(--bleu-action-dark); font-size: 13.5px; font-weight: 600; padding: 10px 14px; border-radius: var(--radius-md); margin: 6px 0; }
+.travel-chip svg { width: 15px; height: 15px; }
+.travel-chip .banner-text { flex: 1; }
+.travel-chip .banner-edit { margin-left: auto; }
+
+.alert-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius-md); border-left: 4px solid; font-size: 13.5px; margin: 6px 0; }
+.alert-banner.warning { background: var(--attention-bg); border-color: var(--attention); color: #8a5a05; }
+.alert-banner.info { background: var(--bleu-action-10); border-color: var(--bleu-secondaire); color: var(--bleu-action-dark); }
+.alert-banner svg { width: 16px; height: 16px; flex-shrink: 0; }
+.alert-banner strong { font-weight: 700; }
+.alert-banner .banner-text { flex: 1; }
+.alert-banner .banner-edit { margin-left: auto; }
+.banner-edit-btn { background: none; border: none; cursor: pointer; color: inherit; opacity: 0.75; padding: 2px; flex-shrink: 0; }
+.banner-edit-btn:hover { opacity: 1; }
+.banner-edit-btn svg { width: 15px; height: 15px; }
+
+.footer-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; max-width: 340px; }
+
+/* ---------- Modal ---------- */
+
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(17,17,17,0.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+}
+
+.modal {
+  background: var(--blanc);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-md);
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal.modal-sm { max-width: 420px; }
+
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 0; }
+.modal-head h2 { font-size: 18px; margin: 0; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--texte-secondaire); padding: 4px; }
+.modal-close svg { width: 20px; height: 20px; }
+
+.modal-body { padding: 16px 24px 24px; overflow-y: auto; }
+.modal-footer { padding: 0 24px 24px; }
+
+.dest-tabs { display: flex; border-bottom: 1px solid var(--bordures); margin-bottom: 16px; gap: 4px; overflow-x: auto; }
+.dest-tab { position: relative; display: flex; align-items: center; gap: 6px; padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--texte-secondaire); border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.dest-tab svg { width: 15px; height: 15px; }
+.dest-tab.active { color: var(--bleu-principal); border-color: var(--bleu-principal); }
+.dest-tab .tab-badge {
+  position: absolute; top: 2px; right: 2px;
+  background: var(--rouge-principal); color: var(--blanc);
+  font-size: 10.5px; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px;
+}
+
+.info-banner { display: flex; gap: 10px; align-items: flex-start; background: var(--bleu-action-10); color: var(--bleu-action-dark); padding: 12px 14px; border-radius: var(--radius-md); border-left: 4px solid var(--bleu-secondaire); font-size: 13.5px; margin-bottom: 4px; }
+.info-banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.info-banner.clickable { cursor: pointer; }
+.info-banner.clickable:hover { border-left-color: var(--bleu-action-dark); }
+.info-banner.clickable:hover span { text-decoration: underline; }
+
+/* Rappel du point d'insertion, en tête du modal de destination. Surface navy
+   plutôt que bleu action : c'est le contexte du modal, pas un conseil de plus
+   au même niveau que les .info-banner qui le suivent. */
+.insert-hint { display: flex; gap: 10px; align-items: flex-start; background: var(--lumiere-principale); color: var(--bleu-principal); border: 1px solid var(--bordures); padding: 12px 14px; border-radius: var(--radius-md); font-size: 13.5px; margin-bottom: 12px; }
+.insert-hint svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.insert-hint strong { font-weight: 700; }
+
+.result-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--bordures); cursor: pointer; }
+.result-row:hover { background: var(--neutre-surface); margin: 0 -8px; padding: 12px 8px; border-radius: var(--radius-md); }
+.result-row:last-child { border-bottom: none; }
+.result-thumb { width: 77px; height: 50px; border-radius: var(--radius-lg); flex-shrink: 0; object-fit: cover; display: block; }
+.result-address { flex: 1; font-size: 14.5px; font-weight: 600; }
+.result-add-btn { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--bleu-secondaire); color: var(--bleu-secondaire); background: var(--blanc); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.result-add-btn:hover { background: var(--bleu-action-10); }
+.result-add-btn svg { width: 15px; height: 15px; }
+.result-add-btn.added { background: var(--succes); border-color: var(--succes); color: var(--blanc); }
+
+/* Séparateur de groupe de résultats : les traits de part et d'autre disent que
+   la liste change de nature, pas seulement de rubrique. */
+.result-group {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 2px; font-size: 13px; font-weight: 700; color: var(--bleu-principal);
+}
+.result-group::before, .result-group::after { content: ''; flex: 1; height: 1px; background: var(--bordures); }
+.result-group:first-child { margin-top: 4px; }
+
+/* Adresse hors catalogue : pas de fiche, donc une épingle à la place de la
+   vignette — la différence se voit avant même de lire. */
+.result-pin {
+  width: 77px; height: 50px; border-radius: var(--radius-lg); flex-shrink: 0;
+  background: var(--lumiere-principale); color: var(--bleu-secondaire);
+  display: flex; align-items: center; justify-content: center;
+}
+.result-pin svg { width: 20px; height: 20px; }
+
+/* Inscription retirée du marché : visible, expliquée, non cliquable. */
+.result-row.is-inactive { cursor: not-allowed; color: var(--rouge-principal); }
+.result-row.is-inactive:hover { background: none; margin: 0; padding: 12px 4px; }
+.result-row.is-inactive .result-thumb { filter: grayscale(1); opacity: 0.55; }
+.result-inactive-tag { font-weight: 700; }
+
+.dest-empty { margin: 14px 0 0; font-size: 14px; line-height: 1.5; color: var(--rouge-principal); }
+
+
+/* ---------- Demande de visite (Figma 4382:11041) ---------- */
+
+.vr-head { display: flex; align-items: center; gap: 8px; }
+.vr-back { background: none; border: none; padding: 4px; cursor: pointer; color: #1A2740; display: flex; }
+.vr-back svg { width: 22px; height: 22px; }
+.vr-title { flex: 1; text-align: center; font-size: 18px; margin: 0; }
+.vr-head-spacer { width: 30px; }
+
+.vr-broker { display: flex; align-items: center; gap: 12px; padding: 6px 0 14px; border-bottom: 1px solid var(--bordures); margin-bottom: 14px; }
+.vr-broker-avatar {
+  width: 42px; height: 42px; border-radius: var(--radius-md); flex-shrink: 0;
+  background: var(--bleu-principal); color: var(--blanc);
+  font-size: 15px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.vr-broker-name { margin: 0; font-size: 15px; font-weight: 700; }
+.vr-broker-agency { margin: 2px 0 0; font-size: 13px; color: var(--texte-secondaire); }
+
+/* Hors catalogue, le bloc courtier devient une recherche dans l'annuaire. Une
+   fois le courtier choisi, il reprend exactement la forme du bloc figé — même
+   vignette, même identité — et « Changer » garde la sortie ouverte. */
+.vr-broker-pick {
+  padding: 6px 0 14px; border-bottom: 1px solid var(--bordures); margin-bottom: 14px;
+}
+.vr-broker #vr-courtier-clear { margin-left: auto; align-self: center; }
+
+.courtier-results { margin-top: 10px; border: 1px solid var(--bordures); border-radius: var(--radius-md); overflow: hidden; }
+.courtier-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 12px; background: var(--blanc); border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  border-bottom: 1px solid var(--bordures);
+}
+.courtier-row:last-child { border-bottom: none; }
+.courtier-row:hover { background: var(--lumiere-principale); }
+.courtier-row:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: -2px; }
+.courtier-row .vr-broker-avatar { width: 34px; height: 34px; font-size: 13px; }
+.courtier-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.courtier-name { font-size: 14.5px; font-weight: 700; color: var(--texte-principal); }
+.courtier-office { font-size: 12.5px; color: var(--texte-secondaire); }
+
+.vr-property { display: flex; align-items: center; gap: 12px; padding-bottom: 16px; }
+.vr-property-address { font-size: 15px; font-weight: 600; }
+
+/* Astérisque des champs requis : la couleur ne porte pas seule l'information,
+   le caractère est lui-même le signal (WCAG 1.4.1). */
+.req { color: var(--rouge-principal); font-weight: 700; }
+.opt { color: var(--texte-secondaire); font-weight: 400; }
+.input.is-error { border-color: var(--rouge-principal); }
+.input.is-error:focus { outline-color: var(--rouge-principal); }
+
+.vr-date { background: var(--neutre-surface); border-color: var(--neutre-surface); }
+
+.vr-note { font-size: 12.5px; color: var(--texte-principal); margin: -8px 0 14px; }
+
+.vr-availability {
+  background: #F5F87F;
+  color: var(--texte-principal);
+  font-size: 14px; font-weight: 600; text-align: center;
+  padding: 13px; border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.vr-comment { height: auto; min-height: 84px; padding: 12px 14px; resize: vertical; font-family: inherit; }
+.vr-charcount { font-size: 12.5px; color: var(--texte-secondaire); text-align: right; margin: 6px 0 0; }
+
+/* ---------- Compte rendu de visite ---------- */
+
+.report-comment { height: auto; min-height: 72px; padding: 12px 14px; resize: vertical; font-family: inherit; }
+
+.rating-stars { display: flex; gap: 6px; }
+.rating-star { background: none; border: none; padding: 2px; cursor: pointer; color: var(--bordures); }
+.rating-star svg { width: 24px; height: 24px; display: block; }
+.rating-star.active { color: var(--attention); }
+.rating-star.active svg path { fill: currentColor; }
+
+.option-chip-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.option-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--lumiere-principale); border: none; border-radius: var(--radius-md);
+  padding: 10px; font-size: 14px; font-weight: 500; color: var(--texte-principal); cursor: pointer;
+}
+.option-radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--bordures); flex-shrink: 0; position: relative; background: var(--blanc); }
+.option-chip.selected .option-radio { border-color: var(--bleu-secondaire); }
+.option-chip.selected .option-radio::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--bleu-secondaire);
+}
+
+.callback-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.callback-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--bleu-principal); color: var(--blanc); border-radius: var(--radius-sm);
+  padding: 6px 6px 6px 12px; font-size: 14px; font-weight: 500;
+}
+.callback-chip button { background: none; border: none; color: var(--blanc); cursor: pointer; display: flex; padding: 4px; }
+.callback-chip button svg { width: 10px; height: 10px; }
+
+/* ---------- Toast (Figma 4337:3707: banner shown at the top of the page) ---------- */
+
+.toast {
+  position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+  background: #EAF3FB; border-left: 4px solid var(--bleu-secondaire);
+  color: var(--texte-principal);
+  padding: 20px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+  font-size: 13px; font-weight: 400; display: flex; align-items: center; gap: 11px;
+  white-space: nowrap; max-width: calc(100vw - 40px);
+  z-index: 200; animation: toast-in 0.25s ease;
+}
+.toast .toast-icon {
+  width: 20px; height: 20px; border-radius: 999px; flex-shrink: 0;
+  background: var(--bleu-secondaire); color: var(--blanc);
+  font-size: 12px; font-weight: 700; font-style: normal;
+  display: flex; align-items: center; justify-content: center;
+}
+.toast.success { background: #E8F6E8; border-left-color: #1AA41D; }
+.toast.success .toast-icon { background: #1AA41D; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* ---------- Tour map (Leaflet) ---------- */
+
+.tour-map {
+  height: 380px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--bordures);
+  background: #E9EEF4;
+  z-index: 0; /* keep Leaflet panes below the app's modal overlay */
+}
+
+/* Leaflet dimensionne le <svg> de son calque vectoriel par attributs
+   width/height — et une règle CSS l'emporte sur un attribut de présentation.
+   Le filet de sécurité `svg { width: 18px }` en tête de fichier réduisait donc
+   tout le tracé du tour à un carré de 18 px : les lignes étaient bien dans le
+   DOM, mais invisibles. On ne cible que ce svg-là ; les icônes des marqueurs,
+   imbriquées plus profond, gardent leur taille. */
+.leaflet-pane > svg { width: auto; height: auto; }
+
+/* La tuile OpenStreetMap est saturée de rouges et d'oranges autoroutiers : un
+   tracé posé dessus se lit comme une route de plus. On désature le fond pour
+   que l'itinéraire soit la seule chose colorée à l'écran — la hiérarchie que
+   Google Maps applique à ses propres cartes. Le filtre ne touche que le calque
+   des tuiles : épingles, tracé et repères gardent leurs couleurs. */
+.tour-map .leaflet-tile-pane { filter: saturate(0.28) brightness(1.06) contrast(0.94); }
+
+/* Numbered stop markers. The number carries the order of the tour; the arrows
+   along the route carry its direction. */
+.tour-pin-wrap { background: none; border: none; }
+.tour-pin {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bleu-principal); color: var(--blanc);
+  font-size: 13px; font-weight: 700;
+  border: 2px solid var(--blanc); box-shadow: var(--shadow-base);
+}
+.tour-pin.is-start { background: var(--succes); }
+
+/* Repère de direction posé sur le tracé, orienté au cap du segment. */
+.route-arrow-wrap { background: none; border: none; }
+.route-arrow {
+  width: 18px; height: 18px;
+  filter: drop-shadow(0 1px 2px rgba(33, 49, 99, 0.35));
+}
+
+.leg-label-wrap { background: none; border: none; }
+.leg-label {
+  display: inline-block; white-space: nowrap;
+  background: var(--blanc); color: var(--bleu-action-dark);
+  font-size: 11.5px; font-weight: 700; padding: 2px 7px;
+  border: 1.5px solid var(--bordures); border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+
+.route-summary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  margin-top: 12px; font-size: 13.5px; color: var(--texte-secondaire);
+}
+.route-summary-item strong { color: var(--texte-principal); font-weight: 700; }
+.route-summary-sep { width: 1px; height: 14px; background: var(--bordures); }
+.route-summary-note { font-size: 12.5px; font-style: italic; color: var(--texte-secondaire); }
+
+/* ---------- Misc ---------- */
+
+.helper-text { font-size: 13px; color: var(--texte-secondaire); margin: -10px 0 18px; }
+/* .helper-text remonte de 10px pour se coller sous un champ ; sous les cartes de
+   plateforme, cette remontée les chevauche. */
+.helper-text.platform-note { margin-top: 10px; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #D5DBE3; border-radius: 999px; }
+
+/* ---------- Contact pane ---------- */
+
+/* Full content width, like the other screens (Figma: search bar spans 1000px,
+   action buttons are a 300px stacked column). */
+.contact-pane { width: 100%; }
+.form-actions { display: flex; flex-direction: column; gap: 20px; width: 300px; }
+
+.create-btn-wrap { margin-top: 12px; width: 325px; }
+
+/* ---------- Mobile chrome (hidden on desktop) ---------- */
+
+.mobile-header { display: none; }
+.mobile-footer { display: none; }
+
+/* ---------- Menu grid (mobile screen, per Figma 4366:7566) ---------- */
+
+/* Figma IC Menu (4366:7566): 115px cards, gap 16x10, 40px icons, Inter Medium 14 labels */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 115px);
+  gap: 10px 16px;
+  justify-content: center;
+  padding-top: 8px;
+}
+.menu-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 115px;
+  height: 115px;
+  background: var(--blanc);
+  border: 1px solid var(--bordures);
+  border-radius: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+.menu-card:hover { box-shadow: var(--shadow-base); }
+.menu-card-clip { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; pointer-events: none; }
+.menu-card-icon { width: 40px; height: 40px; color: var(--bleu-principal); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.menu-card-icon img { max-width: 40px; max-height: 40px; display: block; }
+.menu-card-label { font-size: 14px; font-weight: 500; color: var(--bleu-principal); line-height: 1.15; padding: 0 6px; }
+.menu-card-badge {
+  position: absolute; top: -8px; right: -8px; margin: 0;
+  width: 25px; height: 25px; font-size: 14px; font-weight: 600; z-index: 2;
+}
+.menu-card:last-child:nth-child(3n + 1) { grid-column: 2; }
+.menu-ribbon {
+  position: absolute; top: 12px; right: -32px;
+  background: var(--bleu-secondaire); color: var(--blanc);
+  font-size: 9px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 4px 32px; transform: rotate(45deg);
+  box-shadow: 3px 2px 14.4px rgba(26,39,64,0.1);
+}
+
+/* ---------- Responsive (mobile mockups: Figma 4366:7566 → 4366:8855) ---------- */
+
+@media (max-width: 768px) {
+  body { background: var(--blanc); }
+
+  .sidebar { display: none; }
+  .topbar { display: none; }
+
+  .main-col { border-radius: 0; }
+
+  /* Figma header (4366:7615): 20px bottom radius, bottom-aligned content, 185px logo.
+     Two variants: --menu (logo + logout) on the menu screen,
+     --nav (back + page title + menu grid) on every other screen. */
+  .mobile-header {
+    align-items: flex-end;
+    justify-content: space-between;
+    background: var(--lumiere-principale);
+    border-radius: 0 0 20px 20px;
+    padding: 28px 20px 20px;
+    margin-bottom: 24px;
+  }
+  body[data-screen="menu"] .mobile-header--menu { display: flex; }
+  body:not([data-screen="menu"]) .mobile-header--nav { display: flex; align-items: center; padding-top: 34px; }
+
+  .mobile-logo { padding: 0; }
+  .mobile-logo img { display: block; height: 31px; width: auto; }
+  .mobile-power { background: none; border: none; padding: 4px; cursor: pointer; color: var(--bleu-principal); }
+  .mobile-power svg { width: 28px; height: 28px; }
+
+  .mobile-nav-back, .mobile-nav-grid {
+    background: none; border: none; padding: 4px; cursor: pointer; color: #1A2740;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mobile-nav-back svg { width: 24px; height: 24px; }
+  .mobile-nav-grid svg { width: 24px; height: 24px; }
+  .mobile-nav-title {
+    flex: 1; text-align: center;
+    font-size: 17px; font-weight: 500; color: #1A2740;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    padding: 0 8px;
+  }
+
+  .content { padding: 0 16px 24px; max-width: none; }
+
+  .mobile-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 24px 16px 28px;
+  }
+  .mobile-footer-flag-lockup { display: block; width: 100px; height: 28px; }
+  .mobile-footer-brand { margin: 0; font-size: 14px; color: var(--bleu-principal); font-weight: 500; }
+
+  /* List screen */
+  .tabs-toggle { margin-bottom: 16px; }
+  .search-bar { margin-bottom: 16px; }
+  .tour-card-name, .tour-card-meta { font-size: 15px; }
+  .create-btn-wrap { width: 100%; }
+
+  /* Forms */
+  .form-actions { width: 100%; }
+  .action-row .btn { min-width: 100%; }
+  .footer-actions { max-width: none; }
+  .input-group { flex-wrap: wrap; }
+
+  /* Modals */
+  .modal { max-width: none; max-height: 94vh; border-radius: var(--radius-xl); }
+  .modal-head { padding: 16px 16px 0; }
+  .modal-body { padding: 12px 16px 16px; }
+  .modal-footer { padding: 0 16px 16px; }
+  .dest-tab { flex-direction: column; gap: 3px; padding: 8px 9px; font-size: 12px; flex: 1; align-items: center; }
+  .result-thumb, .result-pin { width: 56px; height: 40px; }
+  .result-address { font-size: 13.5px; }
+}

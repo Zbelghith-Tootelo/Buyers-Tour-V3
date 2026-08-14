@@ -1,0 +1,7 @@
+.DS_Store
+node_modules/
+
+# Réglages locaux de Claude Code : configuration de poste, pas contenu du site.
+# Ignorés explicitement plutôt que laissés en « non suivis », pour que l'arbre
+# local et le dépôt puissent être comparés sans bruit.
+.claude/

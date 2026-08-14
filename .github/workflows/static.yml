@@ -1,0 +1,50 @@
+# Publie le contenu statique du dépôt sur GitHub Pages.
+name: Deploy static content to Pages
+
+on:
+  push:
+    branches: ["main"]
+  # Permet de relancer une publication à la main depuis l'onglet Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une seule publication à la fois. On n'annule pas celle en vol : une
+# publication interrompue laisserait le site dans un état intermédiaire.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Bascule la source de publication sur « GitHub Actions ». Sans ça, un
+          # dépôt resté sur « Deploy from a branch » accepte l'artefact mais ne
+          # sert jamais le déploiement : l'étape Deploy attend, expire, et le
+          # site reste en 404.
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Tout le dépôt : le site est à la racine.
+          path: '.'
+
+      # v4 va de pair avec upload-pages-artifact@v3. Les majeures suivantes de
+      # ces deux actions changent de format d'artefact et ne se mélangent pas.
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
