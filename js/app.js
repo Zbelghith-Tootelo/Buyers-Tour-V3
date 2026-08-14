@@ -3537,10 +3537,17 @@ const tourMap = { instance: null, center: null, zoom: null, sig: null };
 // the tour reads at a glance. Leaflet draws no arrowheads without a plugin, and
 // the progression does that job while staying inside the brand palette.
 const ROUTE_LEG_COLORS = ['#28A745', '#0E8F8F', '#0066DC', '#3B4E9B', '#213163'];
-function legColor(i, total) {
-  if (total <= 1) return ROUTE_LEG_COLORS[0];
-  return ROUTE_LEG_COLORS[Math.round((i / (total - 1)) * (ROUTE_LEG_COLORS.length - 1))];
+// Un trait et un texte ne se lisent pas au même seuil : 3:1 pour un graphique,
+// 4,5:1 pour du texte. Le vert et le turquoise du tracé tombent à 3,1 et 3,9
+// dès qu'ils écrivent un mot. La pastille prend donc une version foncée de la
+// même teinte — elle reste appariée à son segment, et devient lisible.
+const ROUTE_LEG_LABEL_COLORS = ['#17792A', '#0B7373', '#0066DC', '#3B4E9B', '#213163'];
+function legColorIndex(i, total) {
+  if (total <= 1) return 0;
+  return Math.round((i / (total - 1)) * (ROUTE_LEG_COLORS.length - 1));
 }
+function legColor(i, total) { return ROUTE_LEG_COLORS[legColorIndex(i, total)]; }
+function legLabelColor(i, total) { return ROUTE_LEG_LABEL_COLORS[legColorIndex(i, total)]; }
 
 // Personne ne conduit en ligne droite : sans service de routage, une ligne
 // tirée à la règle entre deux adresses ne ressemble à rien. On trace donc une
@@ -3646,6 +3653,7 @@ function buildTourMap() {
   for (let i = 0; i < legCount; i++) {
     const a = coordsFor(pts[i]), b = coordsFor(pts[i + 1]);
     const color = legColor(i, legCount);
+    const labelColor = legLabelColor(i, legCount);
     const path = legPath(i);
     L.polyline(path, {
       color, weight: 6, opacity: 1, lineJoin: 'round', lineCap: 'round',
@@ -3677,7 +3685,7 @@ function buildTourMap() {
       interactive: false,
       icon: L.divIcon({
         className: 'leg-label-wrap',
-        html: `<span class="leg-label" style="color:${color};border-color:${color};">${geoTravelMinutes(a, b)} min</span>`,
+        html: `<span class="leg-label" style="color:${labelColor};border-color:${color};">${geoTravelMinutes(a, b)} min</span>`,
         iconSize: [54, 20], iconAnchor: [27, 10],
       }),
     }).addTo(map);
