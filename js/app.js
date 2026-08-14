@@ -1417,7 +1417,12 @@ function renderListScreen() {
       <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past">Passé</button>
     </div>
     <div class="search-bar">
-      <input type="text" class="input" id="list-search" placeholder="Chercher un contact..." value="${esc(state.listSearch)}">
+      <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
+           à l'œil. Le nom accessible dit ce que la recherche compare — un
+           contact, pas une adresse — ce que le texte d'invite disait déjà mais
+           qu'il cesse de dire dès la première frappe. -->
+      <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
+        aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
       ${icon('search')}
     </div>
     ${listHtml}
@@ -1439,9 +1444,9 @@ function renderContactScreen() {
   if (selected) {
     searchBlock = `
       <div class="field">
-        <label class="field-label">Sélectionnez un contact :</label>
+        <label class="field-label" for="selected-buyer">Sélectionnez un contact :</label>
         <div class="buyer-chip">
-          <input class="input" value="${esc(selected.prenom + ' ' + selected.nom)}" readonly>
+          <input class="input" id="selected-buyer" value="${esc(selected.prenom + ' ' + selected.nom)}" readonly>
           <div class="input-actions">
             <button class="select-icon-btn help" data-edit-buyer title="Modifier" aria-label="Modifier ce contact">${icon('pencil')}</button>
             <button class="select-icon-btn remove" id="btn-remove-selected-buyer" title="Retirer" aria-label="Retirer ce contact">${icon('x')}</button>
@@ -1451,7 +1456,7 @@ function renderContactScreen() {
   } else {
     searchBlock = `
       <div class="field">
-        <label class="field-label">Sélectionnez un contact :</label>
+        <label class="field-label" for="contact-search">Sélectionnez un contact :</label>
         <div class="search-bar" style="margin-bottom:10px;">
           <input type="text" class="input" id="contact-search" placeholder="Chercher un acheteur..." value="${esc(state.contactSearch)}">
           ${icon('search')}
@@ -1542,11 +1547,11 @@ function renderBuyerForm() {
       <div style="height:14px;"></div>
       <div class="field-row">
         <div class="field">
-          <label class="field-label">Prénom :</label>
+          <label class="field-label" for="bf-prenom">Prénom :</label>
           <input class="input" id="bf-prenom" value="${esc(f.prenom)}" placeholder="Prénom">
         </div>
         <div class="field">
-          <label class="field-label">Nom :</label>
+          <label class="field-label" for="bf-nom">Nom :</label>
           <input class="input" id="bf-nom" value="${esc(f.nom)}" placeholder="Nom">
         </div>
       </div>
@@ -1560,7 +1565,8 @@ function renderBuyerForm() {
         </div>
         ${f.emails.map((val, i) => `
           <div class="input-group">
-            <input class="input" data-email-idx="${i}" value="${esc(val)}" placeholder="courriel@exemple.com">
+            <input class="input" type="email" data-email-idx="${i}" value="${esc(val)}" placeholder="courriel@exemple.com"
+              aria-label="Courriel ${i + 1}${f.emails.length > 1 ? ` sur ${f.emails.length}` : ''}">
             ${f.emails.length > 1 ? `<button class="select-icon-btn remove" data-remove-email="${i}">${icon('x')}</button>` : ''}
           </div>`).join('')}
       </div>
@@ -1574,8 +1580,10 @@ function renderBuyerForm() {
         </div>
         ${f.tels.map((val, i) => `
           <div class="input-group">
-            <input class="input" data-tel-idx="${i}" value="${esc(val)}" placeholder="(514) 000-0000">
-            <select class="input select" style="width:130px;flex:none;" data-tel-type-idx="${i}">
+            <input class="input" type="tel" data-tel-idx="${i}" value="${esc(val)}" placeholder="(514) 000-0000"
+              aria-label="Téléphone ${i + 1}${f.tels.length > 1 ? ` sur ${f.tels.length}` : ''}">
+            <select class="input select" style="width:130px;flex:none;" data-tel-type-idx="${i}"
+              aria-label="Type du téléphone ${i + 1}">
               <option ${val.type === 'Cellulaire' ? 'selected' : ''}>Non défini</option>
               <option>Cellulaire</option>
               <option>Maison</option>
@@ -1839,15 +1847,15 @@ function renderBuilderScreen() {
   // contacts — ne les atteint pas.
   const buyerField = buyer ? `
     <div class="field">
-      <label class="field-label">Nom de l'acheteur</label>
-      <button type="button" class="readonly-chip" id="btn-change-buyer">
+      <span class="field-label" id="lbl-acheteur">Nom de l'acheteur</span>
+      <button type="button" class="readonly-chip" id="btn-change-buyer" aria-describedby="lbl-acheteur">
         ${esc(buyer.prenom + ' ' + buyer.nom)}
         ${icon('chevronRight')}
       </button>
     </div>` : `
     <div class="field">
-      <label class="field-label">Nom de l'acheteur</label>
-      <button class="readonly-chip is-empty" id="btn-name-buyer">
+      <span class="field-label" id="lbl-acheteur">Nom de l'acheteur</span>
+      <button class="readonly-chip is-empty" id="btn-name-buyer" aria-describedby="lbl-acheteur">
         Pour qui est ce tour ?
         ${icon('chevronRight')}
       </button>
@@ -1928,7 +1936,7 @@ function renderBuilderScreen() {
     ${buyerField}
     <div class="field-row">
       <div class="field">
-        <label class="field-label">Date</label>
+        <label class="field-label" for="builder-date">Date</label>
         <div class="input-with-icon">
           <!-- La borne guide le sélecteur natif sans jamais descendre sous la
                valeur en place : un tour déjà daté d'hier — rouvert, ou
@@ -1939,7 +1947,9 @@ function renderBuilderScreen() {
         </div>
       </div>
       <div class="field">
-        <label class="field-label">Heure</label>
+        ${tourStartIsFixed(draft)
+          ? `<span class="field-label" id="lbl-heure">Heure</span>`
+          : `<label class="field-label" for="builder-time">Heure</label>`}
         ${timeField}
       </div>
     </div>
@@ -2084,11 +2094,11 @@ function renderEditBuyerModal() {
         <div class="modal-head"><h2 id="modal-title">Modifier l'acheteur</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
-            <label class="field-label">Prénom :</label>
+            <label class="field-label" for="eb-prenom">Prénom :</label>
             <input class="input" id="eb-prenom" value="${esc(f.prenom)}" placeholder="Prénom">
           </div>
           <div class="field">
-            <label class="field-label">Nom :</label>
+            <label class="field-label" for="eb-nom">Nom :</label>
             <input class="input" id="eb-nom" value="${esc(f.nom)}" placeholder="Nom">
           </div>
           <div class="field">
@@ -2101,7 +2111,8 @@ function renderEditBuyerModal() {
             </div>
             ${f.emails.map((val, i) => `
               <div class="input-group">
-                <input class="input" data-eb-email-idx="${i}" value="${esc(val)}" placeholder="courriel@exemple.com">
+                <input class="input" type="email" data-eb-email-idx="${i}" value="${esc(val)}" placeholder="courriel@exemple.com"
+                  aria-label="Courriel ${i + 1}${f.emails.length > 1 ? ` sur ${f.emails.length}` : ''}">
                 ${f.emails.length > 1 ? `<button class="select-icon-btn remove" data-eb-remove-email="${i}">${icon('x')}</button>` : ''}
               </div>`).join('')}
           </div>
@@ -2115,8 +2126,10 @@ function renderEditBuyerModal() {
             </div>
             ${f.tels.map((val, i) => `
               <div class="input-group">
-                <input class="input" data-eb-tel-idx="${i}" value="${esc(val)}" placeholder="(514) 000-0000">
-                <select class="input select" style="width:130px;flex:none;" data-eb-tel-type-idx="${i}">
+                <input class="input" type="tel" data-eb-tel-idx="${i}" value="${esc(val)}" placeholder="(514) 000-0000"
+                  aria-label="Téléphone ${i + 1}${f.tels.length > 1 ? ` sur ${f.tels.length}` : ''}">
+                <select class="input select" style="width:130px;flex:none;" data-eb-tel-type-idx="${i}"
+                  aria-label="Type du téléphone ${i + 1}">
                   <option>Non défini</option>
                   <option>Cellulaire</option>
                   <option>Maison</option>
@@ -2285,17 +2298,17 @@ function renderVisitRequestModal() {
           </div>
 
           <div class="field">
-            <label class="field-label">Date</label>
+            <label class="field-label" for="vr-date">Date</label>
             <input type="date" class="input vr-date" id="vr-date" value="${m.date}">
           </div>
 
           <div class="field-row">
             <div class="field">
-              <label class="field-label">De :</label>
+              <label class="field-label" for="vr-from">De :</label>
               <select class="input select" id="vr-from">${fromOptions}</select>
             </div>
             <div class="field">
-              <label class="field-label">À :</label>
+              <label class="field-label" for="vr-duration">À :</label>
               <select class="input select" id="vr-duration">
                 ${[...new Set([15, 30, m.duration])].sort((a, b) => a - b).map(d => `
                   <option value="${d}" ${m.duration === d ? 'selected' : ''}>${minutesToLabel(m.from + d).replace('h', ':')}</option>`).join('')}
@@ -2307,12 +2320,15 @@ function renderVisitRequestModal() {
           <div class="vr-availability">Disponibilité à confirmer</div>
 
           <div class="field" style="margin-bottom:4px;">
-            <textarea class="input vr-comment" id="vr-comment" placeholder="Commentaires" maxlength="750" rows="3">${esc(m.comment)}</textarea>
+            <!-- Le texte d'invite ne tenait pas lieu d'étiquette : il disparaît
+                 à la première frappe, et le champ n'a alors plus de nom. -->
+            <label class="field-label" for="vr-comment">Commentaires</label>
+            <textarea class="input vr-comment" id="vr-comment" placeholder="Précisions pour le courtier inscripteur" maxlength="750" rows="3">${esc(m.comment)}</textarea>
             <p class="vr-charcount">Caractères : <span id="vr-charcount">${m.comment.length}</span> / 750</p>
           </div>
 
           <div class="field">
-            <label class="field-label">Numéro de rappel</label>
+            <label class="field-label" for="vr-callback">Numéro de rappel</label>
             <input type="tel" class="input" id="vr-callback" value="${esc(m.callback)}" placeholder="(514) 000-0000">
           </div>
         </div>
@@ -2673,11 +2689,11 @@ function renderDestinationModal() {
   } else if (tab === 'arret') {
     body = `
       <div class="field">
-        <label class="field-label">Nom de l'arrêt</label>
+        <label class="field-label" for="stop-name">Nom de l'arrêt</label>
         <input class="input" id="stop-name" placeholder="Ex: Dîner avec le client">
       </div>
       <div class="field">
-        <label class="field-label">Adresse</label>
+        <label class="field-label" for="stop-address">Adresse</label>
         <input class="input" id="stop-address" placeholder="Ex: 1250 Rue Sainte-Catherine, Montréal" value="${esc(state.destModalPrefillAddress)}">
       </div>
       <button class="btn btn-secondary btn-block" id="btn-add-custom-stop">${icon('plus')} Ajouter cet arrêt</button>
@@ -2685,7 +2701,7 @@ function renderDestinationModal() {
   } else if (tab === 'pause') {
     body = `
       <div class="field">
-        <label class="field-label">Durée de la pause</label>
+        <label class="field-label" for="pause-duration">Durée de la pause</label>
         <select class="input select" id="pause-duration">
           <option value="15">15 minutes</option>
           <option value="30" selected>30 minutes</option>
@@ -2821,9 +2837,9 @@ function renderMapScreen() {
     <div>${stopsHtml}</div>`;
 }
 
-function ratingStarsHtml(group, value) {
+function ratingStarsHtml(group, value, labelId) {
   return `
-    <div class="rating-stars" data-rating-group="${group}">
+    <div class="rating-stars" data-rating-group="${group}"${labelId ? ` aria-labelledby="${labelId}"` : ''}>
       ${[1, 2, 3, 4, 5].map(n => `
         <button type="button" class="rating-star ${n <= value ? 'active' : ''}" data-rate="${group}" data-value="${n}" aria-label="${n} étoile${n > 1 ? 's' : ''}">${icon('star')}</button>
       `).join('')}
@@ -2873,8 +2889,8 @@ function renderReportScreen() {
     </div>
 
     <div class="field" style="margin-top:16px;">
-      <label class="field-label" style="font-weight:700;">Intérêt global</label>
-      ${ratingStarsHtml('interet', draft.interet)}
+      <span class="field-label" id="lbl-interet" style="font-weight:700;">Intérêt global</span>
+      ${ratingStarsHtml('interet', draft.interet, 'lbl-interet')}
     </div>
 
     <p class="section-label" style="margin-top:16px;">Prix</p>
@@ -2887,12 +2903,12 @@ function renderReportScreen() {
     <p class="section-label" style="margin-top:22px;font-weight:700;">Rapport sur la propriété</p>
 
     <div class="field" style="margin-top:10px;">
-      <label class="field-label" style="font-weight:700;">Intérieur</label>
-      ${ratingStarsHtml('interieur', draft.interieur)}
+      <span class="field-label" id="lbl-interieur" style="font-weight:700;">Intérieur</span>
+      ${ratingStarsHtml('interieur', draft.interieur, 'lbl-interieur')}
     </div>
     <div class="field" style="margin-top:14px;">
-      <label class="field-label" style="font-weight:700;">Extérieur</label>
-      ${ratingStarsHtml('exterieur', draft.exterieur)}
+      <span class="field-label" id="lbl-exterieur" style="font-weight:700;">Extérieur</span>
+      ${ratingStarsHtml('exterieur', draft.exterieur, 'lbl-exterieur')}
     </div>
 
     <p class="section-label" style="margin-top:16px;">L'acheteur va faire une offre</p>
@@ -2903,13 +2919,18 @@ function renderReportScreen() {
     ], draft.offre)}
 
     <div class="field" style="margin-top:16px;">
-      <label class="field-label">Commentaires :</label>
+      <label class="field-label" for="report-comment">Commentaires :</label>
       <textarea class="input report-comment" id="report-comment" maxlength="750" rows="3" placeholder="Veuillez entrer votre message.">${esc(draft.comment)}</textarea>
+      <!-- Même limite que la demande de visite, donc même compteur : une
+           troncature silencieuse à 750 est d'autant plus rude ici que c'est le
+           plus long des deux textes. La zone vocale l'annonce sans voler le
+           focus. -->
+      <p class="vr-charcount" aria-live="polite">Caractères : <span id="report-charcount">${draft.comment.length}</span> / 750</p>
     </div>
 
     <div class="field" style="margin-top:16px;">
-      <label class="field-label">Numéro de rappel</label>
-      <div class="callback-chips">
+      <span class="field-label" id="lbl-rappel">Numéro de rappel</span>
+      <div class="callback-chips" role="group" aria-labelledby="lbl-rappel">
         ${draft.callbackNumbers.map((num, i) => `
           <span class="callback-chip">${esc(num)} <button type="button" data-remove-callback="${i}" aria-label="Retirer ce numéro">${icon('x')}</button></span>
         `).join('')}
@@ -2942,7 +2963,7 @@ function renderEditStopModal() {
         <div class="modal-head"><h2 id="modal-title">Modifier la pause</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
           <div class="field">
-            <label class="field-label">Durée</label>
+            <label class="field-label" for="edit-pause-duration">Durée</label>
             <select class="input select" id="edit-pause-duration">
               ${[15, 30, 45, 60].map(v => `<option value="${v}" ${v === stop.duration ? 'selected' : ''}>${v} minutes</option>`).join('')}
             </select>
@@ -3759,7 +3780,13 @@ function bindReportEvents() {
   });
 
   const comment = document.getElementById('report-comment');
-  if (comment) comment.oninput = () => { state.reportDraft.comment = comment.value; };
+  if (comment) comment.oninput = () => {
+    state.reportDraft.comment = comment.value;
+    // Pas de render() : réécrire l'écran à chaque frappe ferait perdre le
+    // curseur. Seul le compteur bouge, on le met à jour à la main.
+    const cc = document.getElementById('report-charcount');
+    if (cc) cc.textContent = comment.value.length;
+  };
 
   document.querySelectorAll('[data-remove-callback]').forEach(el => {
     el.onclick = () => {
