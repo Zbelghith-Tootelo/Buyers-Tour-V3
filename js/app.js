@@ -1193,6 +1193,28 @@ function computeSchedule(draft) {
   return rows;
 }
 
+/* ----- Contrôles qui n'agissent plus -----
+   Un contrôle a trois états, pas deux : actif, désactivé avec un motif, ou
+   remplacé par une lecture. Le troisième est celui qu'on oublie — et un
+   `<select>` qu'on ne peut plus honorer reste alors à l'écran en affichant une
+   valeur que le reste de la page contredit. Ces deux prédicats répondent à la
+   question « ce contrôle a-t-il encore un effet ? » pour les deux endroits où
+   la réponse était non. */
+
+// L'heure du tour n'amorce le calendrier que si le premier arrêt ne porte pas
+// déjà la sienne. Dès qu'il en porte une — demandée ou confirmée — computeSchedule
+// part de cette heure-là et ignore `draft.time` : le champ n'a plus aucun effet.
+function tourStartIsFixed(draft) {
+  const first = draft.stops[0];
+  return !!(first && first.type === 'property' && first.locked && first.lockedStart);
+}
+
+// Réordonner suppose qu'au moins un arrêt se saisisse. Quand tout est engagé,
+// le titre et les poignées promettent un geste que le modèle interdit.
+function tourIsReorderable(draft) {
+  return draft.stops.some(stopIsDraggable);
+}
+
 /* ---------------- Rendering ---------------- */
 
 const NAV_ITEMS = [
@@ -1821,6 +1843,25 @@ function renderBuilderScreen() {
   // « Partagé » entre dans la liste : un tour peut se dégrader après son envoi
   // — un courtier annule la veille — et l'acheteur détient alors un tour qui
   // n'est plus vrai. Sans panneau, ce statut ne disait plus rien après coup.
+  // Le premier arrêt porte son heure : le sélecteur ne pilote plus rien et
+  // affichait une valeur que le départ et la première visite contredisaient.
+  // Il cède la place à la lecture de l'heure réelle, et dit d'où elle vient.
+  const timeField = !tourStartIsFixed(draft)
+    ? `<select class="input select" id="builder-time">
+        ${TIME_OPTIONS.map(t => `<option value="${t}" ${t === draft.time ? 'selected' : ''}>${t.replace(':', 'h')}</option>`).join('')}
+      </select>`
+    : (() => {
+        const first = draft.stops[0];
+        const confirmee = effectiveStopStatus(first) === 'confirmed';
+        return `
+          <p class="field-static">
+            <strong>${minutesToLabel(rows[0].start)}</strong>
+            <span class="field-static-note">${confirmee
+              ? 'Heure confirmée par le courtier inscripteur'
+              : 'Heure demandée au courtier inscripteur'}</span>
+          </p>`;
+      })();
+
   const panelStatuses = ['en_cours', 'confirme', 'non_envoye', 'partage'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
     <div class="validation-panel ${status}${status === 'partage' && tally.confirmed < tally.total ? ' is-stale' : ''}">
@@ -1860,9 +1901,7 @@ function renderBuilderScreen() {
       </div>
       <div class="field">
         <label class="field-label">Heure</label>
-        <select class="input select" id="builder-time">
-          ${TIME_OPTIONS.map(t => `<option value="${t}" ${t === draft.time ? 'selected' : ''}>${t.replace(':', 'h')}</option>`).join('')}
-        </select>
+        ${timeField}
       </div>
     </div>
 
@@ -2693,6 +2732,9 @@ function renderMapScreen() {
         <span class="route-summary-item"><strong>${formatMinutes(totals.min)}</strong> sur la route</span>
         ${routeStatus === 'loading' ? `<span class="route-summary-note">Tracé approximatif — calcul de l'itinéraire routier…</span>` : ''}
         ${routeStatus === 'error' ? `<span class="route-summary-note">Tracé et distances approximatifs — service de routage indisponible.</span>` : ''}
+        <!-- Le repère vert n'était expliqué nulle part : le mot « départ »
+             n'apparaissait pas sur l'écran. -->
+        <span class="route-summary-note">${icon('car')} Le repère vert est votre point de départ, ${esc(TOUR_START.address.split(',')[0])}.</span>
       </div>
     ` : ''}
 
@@ -2702,7 +2744,13 @@ function renderMapScreen() {
       Optimiser le tour
     </button>
 
-    <p class="section-label" style="margin-top:20px;">Réordonner les arrêts :</p>
+    <!-- Le titre suit ce que le modèle autorise : il annonçait « Réordonner »
+         au-dessus d'arrêts tous épinglés, poignées comprises. -->
+    <p class="section-label" style="margin-top:20px;">${tourIsReorderable(draft)
+      ? 'Réordonner les arrêts :'
+      : 'Arrêts du tour :'}</p>
+    ${tourIsReorderable(draft) ? '' : `
+      <p class="helper-text" style="margin:-6px 0 12px;">Toutes les demandes sont parties : les heures sont des engagements pris auprès des courtiers inscripteurs. Elles se modifient depuis le tour, avec « Modifier la visite ».</p>`}
     <div>${stopsHtml}</div>`;
 }
 

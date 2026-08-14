@@ -629,6 +629,16 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .readonly-chip.is-empty:focus-visible { outline: 2px solid var(--bleu-secondaire); outline-offset: 2px; }
 
 .field-optional { font-weight: 400; color: var(--texte-secondaire); font-size: 12px; }
+
+/* Un contrôle qui n'agit plus devient une lecture. Même gouttière et même
+   hauteur qu'un champ pour que la ligne ne se décale pas, mais ni bordure ni
+   fond : rien ici n'invite à cliquer. */
+.field-static {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  min-height: 44px; margin: 0; padding: 0 2px;
+}
+.field-static strong { font-size: 15px; font-weight: 700; color: var(--texte-principal); }
+.field-static-note { font-size: 12px; font-weight: 500; color: var(--texte-secondaire); line-height: 1.35; }
 .footer-note.is-warn { color: #8a5a05; }
 
 .action-row { display: flex; gap: 12px; margin: 22px 0 20px; flex-wrap: wrap; }
@@ -1052,7 +1062,13 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 }
 .route-summary-item strong { color: var(--texte-principal); font-weight: 700; }
 .route-summary-sep { width: 1px; height: 14px; background: var(--bordures); }
-.route-summary-note { font-size: 12.5px; font-style: italic; color: var(--texte-secondaire); }
+/* Les notes passent à la ligne : ce sont des phrases, pas des mesures, et les
+   aligner avec les chiffres les fait lire comme une quatrième statistique. */
+.route-summary-note {
+  flex-basis: 100%; display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-style: italic; color: var(--texte-secondaire);
+}
+.route-summary-note svg { width: 14px; height: 14px; flex-shrink: 0; font-style: normal; }
 
 /* ---------- Misc ---------- */
 
