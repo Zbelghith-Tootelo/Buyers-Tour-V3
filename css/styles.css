@@ -177,7 +177,15 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.topbar-back { display: none; background: none; border: none; padding: 0; cursor: pointer; color: var(--texte-principal); flex-shrink: 0; }
+/* La flèche fait 22 px, la zone sensible 28 : le dessin ne change pas, le
+   minimum de 24 exigé par WCAG 2.5.8 est atteint, et la marge négative rend
+   les 6 px empruntés pour que rien ne bouge autour. */
+.topbar-back {
+  display: none; align-items: center; justify-content: center;
+  width: 28px; height: 28px; margin: -3px;
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--texte-principal); flex-shrink: 0;
+}
 .topbar-back svg { width: 22px; height: 22px; display: block; }
 /* La flèche retour est présente sur tout le parcours ; seule la liste, qui en
    est la racine, s'en passe. */
@@ -746,6 +754,10 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .stop-flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .stop-flag {
   display: inline-flex; align-items: center; gap: 5px;
+  /* La pastille de statut est cliquable quand le simulateur est actif : 24 px
+     est le minimum de WCAG 2.5.8. Les pastilles muettes suivent, pour que deux
+     hauteurs ne cohabitent pas dans une même rangée. */
+  min-height: 24px;
   font-size: 12px; font-weight: 700; line-height: 1.35; text-align: left;
   padding: 3px 9px; border-radius: var(--radius-md);
   background: var(--neutre-surface); color: var(--texte-secondaire);
@@ -771,7 +783,11 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 38px; min-width: 38px; padding: 0 9px;
   border: 1px solid var(--bordures); border-radius: var(--radius-lg);
-  background: var(--blanc); color: #C5CBE0; cursor: pointer;
+  /* L'état non coché était à 1,62:1 — illisible, et en mobile l'étiquette est
+     visible, donc c'est du texte, pas seulement une icône. Le gris secondaire
+     monte à 9,0:1 sans rapprocher les deux états : coché reste le seul à
+     porter un fond et une bordure bleus. */
+  background: var(--blanc); color: var(--texte-secondaire); cursor: pointer;
   font-family: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap;
   transition: color 150ms ease-out, border-color 150ms ease-out, background 150ms ease-out;
 }
@@ -797,7 +813,14 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .alert-banner strong { font-weight: 700; }
 .alert-banner .banner-text { flex: 1; }
 .alert-banner .banner-edit { margin-left: auto; }
-.banner-edit-btn { background: none; border: none; cursor: pointer; color: inherit; opacity: 0.75; padding: 2px; flex-shrink: 0; }
+/* 19 × 19 sous le doigt, sous le minimum de 24 exigé par WCAG 2.5.8. Le dessin
+   ne change pas — c'est la zone sensible qui s'élargit autour de lui. */
+.banner-edit-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; margin: -4px;
+  background: none; border: none; border-radius: var(--radius-sm);
+  cursor: pointer; color: inherit; opacity: 0.75; padding: 0; flex-shrink: 0;
+}
 .banner-edit-btn:hover { opacity: 1; }
 .banner-edit-btn svg { width: 15px; height: 15px; }
 
