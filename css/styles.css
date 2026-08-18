@@ -998,10 +998,44 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   padding: 10px; font-size: 14px; font-weight: 500; color: var(--texte-principal); cursor: pointer;
 }
 .option-radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--bordures); flex-shrink: 0; position: relative; background: var(--blanc); }
-.option-chip.selected .option-radio { border-color: var(--bleu-secondaire); }
-.option-chip.selected .option-radio::after {
+.option-chip.selected .option-radio, .origin-opt.is-on .option-radio { border-color: var(--bleu-secondaire); }
+.option-chip.selected .option-radio::after, .origin-opt.is-on .option-radio::after {
   content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--bleu-secondaire);
 }
+
+/* ----- Choix du point de départ ----- */
+.origin-intro { font-size: 13.5px; line-height: 1.5; color: var(--texte-secondaire); margin: 0 0 16px; }
+.origin-opts { display: flex; flex-direction: column; gap: 8px; }
+.origin-opt {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-md);
+  padding: 12px 14px; cursor: pointer; font-family: inherit;
+  /* Un choix sans seconde ligne retombait sous le seuil tactile de 44 px. */
+  min-height: 44px;
+}
+.origin-opt:hover { background: var(--lumiere-principale); }
+.origin-opt:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.origin-opt.is-on { border-color: var(--bleu-secondaire); background: var(--bleu-action-10); }
+.origin-opt .option-radio { margin-top: 2px; }
+.origin-opt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.origin-opt-title { font-size: 14px; font-weight: 600; color: var(--texte-principal); }
+.origin-opt-sub { font-size: 12.5px; color: var(--texte-secondaire); }
+
+/* Le champ est en retrait sous son choix : l'indentation dit qu'il en dépend
+   plutôt que d'être un quatrième item de la liste (loi de proximité). */
+.origin-custom { padding: 4px 0 4px 25px; }
+.origin-custom .field-label { margin-bottom: 6px; }
+.origin-sugs { margin-top: 8px; border: 1px solid var(--bordures); border-radius: var(--radius-md); overflow: hidden; }
+.origin-sug {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  min-height: 44px; padding: 10px 12px; background: var(--blanc); border: none;
+  border-bottom: 1px solid var(--bordures); cursor: pointer;
+  font-family: inherit; font-size: 13.5px; color: var(--texte-principal);
+}
+.origin-sug:last-child { border-bottom: none; }
+.origin-sug:hover { background: var(--lumiere-principale); }
+.origin-sug:focus-visible { outline: var(--focus-ring); outline-offset: calc(var(--focus-offset) * -1); }
+.origin-sug svg { width: 15px; height: 15px; color: var(--bleu-secondaire); flex-shrink: 0; }
 
 .callback-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .callback-chip {
@@ -1078,8 +1112,19 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 }
 .departure-icon { display: flex; color: #17792a; flex-shrink: 0; margin-top: 2px; }
 .departure-icon svg { width: 16px; height: 16px; }
-.departure-text { font-size: 13.5px; line-height: 1.45; color: var(--texte-secondaire); }
+.departure-text { font-size: 13.5px; line-height: 1.45; color: var(--texte-secondaire); flex: 1; min-width: 0; }
 .departure-text strong { color: #17792a; }
+/* La puce n'était stylée que dans .stop-meta : ici elle collait aux deux mots. */
+.departure-text .dot { margin: 0 5px; }
+
+/* Sans point de départ, il n'y a ni trajet ni heure à annoncer : le vert
+   « on est sur la route » deviendrait faux. Teinte neutre, glyphe de lieu, et la
+   même commande — c'est le seul endroit d'où le départ se définit. */
+.departure-note.is-none { border-left-color: #A9B2C8; background: var(--neutre-surface); }
+.departure-note.is-none .departure-icon { color: var(--texte-secondaire); }
+.departure-note.is-none .departure-text strong { color: var(--texte-principal); }
+
+.departure-edit { flex-shrink: 0; align-self: flex-start; }
 
 /* Le départ n'est pas une étape numérotée : il porte un pictogramme, pas un
    chiffre, et se distingue par la forme autant que par la couleur. */
