@@ -20,6 +20,7 @@ const ICONS = {
   check: `<path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   drag: { viewBox: '0 0 31 30', content: `<path d="M30.1842 11.4211C30.6348 11.4211 31 11.7863 31 12.2368C31 12.6874 30.6348 13.0526 30.1842 13.0526H0.815789C0.365241 13.0526 0 12.6874 0 12.2368C0 11.7863 0.365241 11.4211 0.815789 11.4211H30.1842Z" fill="currentColor"/><path d="M30.1842 16.3158C30.6348 16.3158 31 16.681 31 17.1316C31 17.5821 30.6348 17.9474 30.1842 17.9474H0.815789C0.365241 17.9474 0 17.5821 0 17.1316C0 16.681 0.365241 16.3158 0.815789 16.3158H30.1842Z" fill="currentColor"/><path d="M14.6336 1.5C15.0185 0.833332 15.9807 0.833334 16.3656 1.5L19.579 7.06579C19.9639 7.73246 19.4828 8.56579 18.713 8.56579H12.2862C11.5164 8.56579 11.0353 7.73246 11.4202 7.06579L14.6336 1.5Z" fill="currentColor"/><path d="M16.3664 27.8684C15.9815 28.5351 15.0193 28.5351 14.6344 27.8684L11.421 22.3026C11.0361 21.636 11.5172 20.8026 12.287 20.8026H18.7138C19.4836 20.8026 19.9647 21.636 19.5798 22.3026L16.3664 27.8684Z" fill="currentColor"/>` },
   pause: `<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>`,
+  pin: `<path d="M12 21.5s7-6.1 7-11.2A7 7 0 005 10.3c0 5.1 7 11.2 7 11.2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" fill="none"/><circle cx="12" cy="10" r="2.4" fill="currentColor"/>`,
   car: `<path d="M5 17h14M5 17a2 2 0 104 0M15 17a2 2 0 104 0M3 17l1.5-5.5A2 2 0 016.4 10h11.2a2 2 0 011.9 1.5L21 17M6 10l1-4h10l1 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   warning: `<path d="M12 9v4M12 17h.01M10.3 3.9L2.6 18a1.6 1.6 0 001.4 2.4h16a1.6 1.6 0 001.4-2.4L13.7 3.9a1.6 1.6 0 00-2.8 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   mapPinOutline: `<path d="M12 22s7-7.4 7-12.5A7 7 0 105 9.5C5 14.6 12 22 12 22z" stroke="currentColor" stroke-width="1.6" fill="none"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.6" fill="none"/>`,
@@ -327,28 +328,61 @@ const coordKey = c => `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
 const legKey = (a, b) => `${coordKey(a)}>${coordKey(b)}`;
 
 /* ----- Point de départ -----
-   Le tour ne commence pas à la première propriété : il commence là où le
-   courtier se trouve. Sans ce point, la carte cache le premier trajet — souvent
-   le plus long — et l'optimisation ne peut pas décider par quelle propriété
-   commencer, faute de savoir d'où l'on part.
+   Où commence le tour ? Seul le courtier le sait, et la réponse change d'un jour
+   à l'autre : il part de là où il se trouve, ou d'une adresse convenue, ou bien
+   il retrouve son acheteur devant la première porte. Les trois sont des journées
+   réelles, donc les trois sont des choix — pas un réglage codé en dur.
+
+   Ce point ne décale aucune heure de visite : ce sont des engagements pris
+   auprès des courtiers inscripteurs, et un trajet d'approche ne les réécrit pas.
+   Il décide du premier segment tracé, des totaux, de l'ancre de l'optimisation,
+   et de l'heure à laquelle il faut partir.
 
    Position simulée : le prototype ne demande pas l'autorisation de
-   géolocalisation du navigateur. Elle a la forme d'un arrêt pour que tout le
-   reste — coordsFor, routage, distances, tracé — la traite sans cas
+   géolocalisation du navigateur. Chaque point a la forme d'un arrêt pour que
+   tout le reste — coordsFor, routage, distances, tracé — le traite sans cas
    particulier. */
-const TOUR_START = {
+const BROKER_POSITION = {
   id: 'depart',
   type: 'start',
-  label: 'Mon point de départ',
+  label: 'Ma position',
   address: '1250 Boulevard René-Lévesque Ouest, Montréal, QC H3B 4W8',
   lat: 45.4966,
   lng: -73.5710,
 };
 
+// Trois natures de départ, pas trois variantes de la même : d'où je suis, d'une
+// adresse que je nomme, ou de nulle part avant la première visite.
+const ORIGIN_MODES = [
+  { id: 'position', label: 'Ma position', sub: BROKER_POSITION.address },
+  { id: 'address', label: 'Une autre adresse', sub: 'Bureau, domicile, point de rendez-vous…' },
+  { id: 'first', label: 'La première visite', sub: 'Aucun trajet d\'approche compté' },
+];
+
+// « Ma position » par défaut : c'est le cas courant, et c'était déjà le
+// comportement avant que le choix existe — aucun tour ne change de sens.
+function newOrigin() { return { mode: 'position', address: '' }; }
+
+// Le point effectif, en forme d'arrêt, ou null quand le tour commence à la
+// première visite : il n'y a alors rien avant elle, ni segment ni repère.
+function originPoint(origin) {
+  if (!origin || origin.mode === 'first') return null;
+  if (origin.mode === 'address') {
+    const address = (origin.address || '').trim();
+    // Une adresse vide ne désigne aucun lieu : plutôt que d'inventer des
+    // coordonnées, on retombe sur « commence à la première visite ».
+    if (!address) return null;
+    return { id: 'depart', type: 'start', label: 'Départ', address };
+  }
+  return BROKER_POSITION;
+}
+
 // Les points du trajet, départ compris. Sous une propriété il n'y a pas de
 // trajet à tracer, donc rien à préfixer.
-function routePoints(props) {
-  return props.length ? [TOUR_START, ...props] : [];
+function routePoints(props, origin) {
+  if (!props.length) return [];
+  const start = originPoint(origin);
+  return start ? [start, ...props] : props.slice();
 }
 
 function routeSignature(props) {
@@ -433,15 +467,17 @@ function normalizeParallel(draft) {
 
 // Greedy nearest-neighbour from the first stop, which stays the anchor: the
 // agent decides where the day starts, geography decides the rest.
-function optimizeByGeography(props) {
+function optimizeByGeography(props, origin) {
   if (props.length < 2) return props.slice();
   const remaining = props.slice();
   const route = [];
-  // On part du point de départ du courtier, donc la première visite se choisit
-  // comme les autres. Auparavant elle restait l'ancre du tour, faute de savoir
-  // d'où l'on venait : le trajet le plus long de la journée échappait alors au
-  // calcul.
-  let from = coordsFor(TOUR_START);
+  // Avec un point de départ, la première visite se choisit comme les autres :
+  // c'est le départ qui ancre la chaîne, et le trajet le plus long de la journée
+  // cesse d'échapper au calcul. Quand le tour commence à la première visite, il
+  // faut bien une ancre — et c'est elle qui la fournit.
+  const start = originPoint(origin);
+  if (!start) route.push(remaining.shift());
+  let from = coordsFor(start || route[0]);
   while (remaining.length) {
     let bestIdx = 0, bestKm = Infinity;
     remaining.forEach((s, i) => {
@@ -456,11 +492,11 @@ function optimizeByGeography(props) {
 }
 
 // Total driving distance and time along the tour, in order.
-function routeTotals(stops) {
+function routeTotals(stops, origin) {
   const props = stops.filter(s => s.type === 'property');
   // Le premier trajet — du point de départ à la première visite — compte comme
   // les autres : c'est souvent le plus long de la journée.
-  const pts = routePoints(props);
+  const pts = routePoints(props, origin);
   let km = 0, min = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = coordsFor(pts[i - 1]), b = coordsFor(pts[i]);
@@ -803,6 +839,7 @@ const state = {
   destModalPrefillAddress: '',
   newProperty: null,        // formulaire « Ajouter une propriété inexistante »
   newPropertyTouched: false, // les champs manquants ne sont signalés qu'après un premier envoi
+  originDraft: null,        // choix du point de départ en cours : { mode, address }
   insertBeforeId: null,     // id de l'étape avant laquelle insérer la prochaine destination
   dragStopId: null,
   sendSelection: null,      // ids des propriétés cochées dans l'envoi groupé
@@ -861,6 +898,7 @@ function commitDraft(patch = {}) {
     buyerId: state.draft.buyer ? state.draft.buyer.id : null,
     date: state.draft.date,
     time: state.draft.time,
+    origin: state.draft.origin,
     stops: state.draft.stops,
   };
   const existing = currentTour();
@@ -951,12 +989,12 @@ function ackSameSlot(stop) {
 function planOptimization() {
   const beforeStart = new Map(computeSchedule(state.draft).map(r => [r.stop.id, r.start]));
   const beforeOrder = state.draft.stops.map(s => s.id).join(',');
-  const beforeTotals = routeTotals(state.draft.stops);
+  const beforeTotals = routeTotals(state.draft.stops, state.draft.origin);
 
   const sim = JSON.parse(JSON.stringify(state.draft));
   const pauses = sim.stops.filter(s => s.type === 'pause');
   const props = sim.stops.filter(s => s.type === 'property');
-  sim.stops = [...optimizeByGeography(props), ...pauses];
+  sim.stops = [...optimizeByGeography(props, sim.origin), ...pauses];
   normalizeParallel(sim);
 
   // Une heure verrouillée épinglerait la visite à sa place actuelle et
@@ -996,7 +1034,7 @@ function planOptimization() {
     rows,
     released,
     before: beforeTotals,
-    after: routeTotals(sim.stops),
+    after: routeTotals(sim.stops, sim.origin),
     changed: sim.stops.map(s => s.id).join(',') !== beforeOrder || rows.some(r => r.oldStart !== r.newStart),
   };
 }
@@ -1114,7 +1152,7 @@ function saveDraftToTour(notify, notifyBuyer = false) {
 // l'enchaînement des visites qui décide de sa fin, pas une contrainte saisie
 // d'avance.
 function newDraft(buyer = null) {
-  return { buyer, date: todayPlus(3), time: '14:00', stops: [] };
+  return { buyer, date: todayPlus(3), time: '14:00', origin: newOrigin(), stops: [] };
 }
 
 // Fin réelle du tour, telle qu'annoncée à l'acheteur au moment du partage.
@@ -1716,17 +1754,39 @@ function renderBuilderScreen() {
   // Heure à laquelle il faut partir pour être à l'heure à la première visite.
   // Purement informatif : les heures des visites sont des engagements pris
   // auprès des courtiers inscripteurs, le trajet initial ne les décale pas.
+  //
+  // La ligne existe dans les trois cas, y compris quand le tour commence à la
+  // première visite : c'est le seul endroit d'où le départ se définit, et un
+  // élément qui disparaît emporte sa commande avec lui (Nielsen #6). La commande
+  // est nommée plutôt que réduite à un crayon — « modifier » ne dit pas de quoi
+  // il s'agit quand c'est la seule chose à cliquer de la ligne.
   const firstProp = rows.find(r => r.stop.type === 'property');
+  const originStart = originPoint(draft.origin);
   const departureHtml = !firstProp ? '' : (() => {
-    const trajet = geoTravelMinutes(coordsFor(TOUR_START), coordsFor(firstProp.stop));
+    if (!originStart) {
+      return `
+        <div class="departure-note is-none">
+          <span class="departure-icon">${icon('pin')}</span>
+          <span class="departure-text">
+            <strong>Le tour commence à la première visite.</strong>
+            Aucun trajet d'approche n'est compté.
+          </span>
+          <button class="btn-inline departure-edit" id="btn-edit-origin">Choisir un départ</button>
+        </div>`;
+    }
+    const trajet = geoTravelMinutes(coordsFor(originStart), coordsFor(firstProp.stop));
+    // Sa propre adresse : le courtier n'a pas besoin du code postal. En mode
+    // position on nomme aussi la source, sinon l'adresse a l'air arbitraire.
+    const rue = esc(originStart.address.split(',')[0]);
+    const lieu = draft.origin.mode === 'position' ? `de votre position, ${rue}` : `de ${rue}`;
     return `
       <div class="departure-note">
         <span class="departure-icon">${icon('car')}</span>
         <span class="departure-text">
-          <!-- Sa propre adresse : le courtier n'a pas besoin du code postal. -->
-          <strong>Départ vers ${minutesToLabel(firstProp.start - trajet)}</strong> de ${esc(TOUR_START.address.split(',')[0])}
+          <strong>Départ vers ${minutesToLabel(firstProp.start - trajet)}</strong> ${lieu}
           <span class="dot">•</span> ${trajet} min jusqu'à la première visite
         </span>
+        <button class="btn-inline departure-edit" id="btn-edit-origin">Modifier</button>
       </div>`;
   })();
 
@@ -2083,7 +2143,62 @@ function renderModal() {
   if (state.modal.type === 'confirmRemoveStop') { root.innerHTML = renderConfirmRemoveStopModal(); return; }
   if (state.modal.type === 'editBuyer') { root.innerHTML = renderEditBuyerModal(); return; }
   if (state.modal.type === 'editStop') { root.innerHTML = renderEditStopModal(); return; }
+  if (state.modal.type === 'origin') { root.innerHTML = renderOriginModal(); return; }
   root.innerHTML = '';
+}
+
+// Trois choix exclusifs : c'est un groupe de boutons radio, et l'ARIA le dit —
+// un lecteur d'écran annonce alors « 2 sur 3 », pas trois boutons sans rapport.
+// Le champ d'adresse n'apparaît que sous le choix qui l'exige : demander une
+// adresse à qui part de sa position serait du bruit (divulgation progressive).
+function renderOriginModal() {
+  const d = state.originDraft;
+  const adresseManquante = d.mode === 'address' && !d.address.trim();
+  // Une suggestion identique à la saisie n'a plus rien à proposer.
+  const sugs = d.mode === 'address'
+    ? addressSuggestions(d.address).filter(s => normalizeText(s.address) !== normalizeText(d.address.trim()))
+    : [];
+  const why = whenBlocked('btn-save-origin', !adresseManquante,
+    'Saisissez l\'adresse de départ, ou choisissez un autre point de départ.');
+
+  const option = (m) => `
+    <button class="origin-opt${d.mode === m.id ? ' is-on' : ''}" data-origin-mode="${m.id}"
+      role="radio" aria-checked="${d.mode === m.id}">
+      <span class="option-radio"></span>
+      <span class="origin-opt-body">
+        <span class="origin-opt-title">${esc(m.label)}</span>
+        ${m.sub ? `<span class="origin-opt-sub">${esc(m.sub)}</span>` : ''}
+      </span>
+    </button>`;
+
+  return `
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Point de départ</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+        <div class="modal-body">
+          <p class="origin-intro">D'où partez-vous ? Ce point donne l'heure à laquelle il faut partir,
+            le premier trajet sur la carte, et le point d'ancrage de l'optimisation.
+            <strong>Les heures de visite ne changent pas</strong> — ce sont des engagements pris
+            auprès des courtiers inscripteurs.</p>
+          <div class="origin-opts" role="radiogroup" aria-labelledby="modal-title">
+            ${ORIGIN_MODES.map(m => `${option(m)}${m.id === 'address' && d.mode === 'address' ? `
+              <div class="origin-custom">
+                <label class="field-label" for="origin-address">Adresse de départ</label>
+                <input class="input" id="origin-address" value="${esc(d.address)}"
+                  placeholder="Numéro et rue, ville" autocomplete="off">
+                ${sugs.length ? `<div class="origin-sugs">${sugs.map(s => `
+                  <button class="origin-sug" data-origin-sug="${esc(s.address)}">
+                    ${icon('pin')}<span>${esc(s.address)}</span>
+                  </button>`).join('')}</div>` : ''}
+              </div>` : ''}`).join('')}
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px;">
+          <button class="btn btn-primary" id="btn-save-origin"${why.a}>Enregistrer</button>
+          <button class="btn btn-outline" id="modal-cancel">Annuler</button>
+        </div>${why.n}
+      </div>
+    </div>`;
 }
 
 function renderEditBuyerModal() {
@@ -2789,7 +2904,7 @@ function suggestionRow(sug) {
 function renderMapScreen() {
   const draft = state.draft;
   const rows = computeSchedule(draft);
-  const totals = routeTotals(draft.stops);
+  const totals = routeTotals(draft.stops, draft.origin);
 
   const stopsHtml = draft.stops.length === 0 ? '' : rows
     .map(({ stop, start }) => renderStopCard(stop, start, { variant: 'map' })).join('');
@@ -2801,8 +2916,10 @@ function renderMapScreen() {
   // marks the signature 'loading' synchronously, before its first await, so the
   // status read just below is accurate on the very first paint.
   const props = draft.stops.filter(s => s.type === 'property');
-  ensureRouteGeometry(routePoints(props));
-  const routeStatus = (routeGeometry.get(routeSignature(routePoints(props))) || {}).status;
+  const pts = routePoints(props, draft.origin);
+  ensureRouteGeometry(pts);
+  const routeStatus = (routeGeometry.get(routeSignature(pts)) || {}).status;
+  const mapStart = originPoint(draft.origin);
 
   return `
     <div id="leaflet-map" class="tour-map"></div>
@@ -2816,8 +2933,11 @@ function renderMapScreen() {
         ${routeStatus === 'loading' ? `<span class="route-summary-note">Tracé approximatif — calcul de l'itinéraire routier…</span>` : ''}
         ${routeStatus === 'error' ? `<span class="route-summary-note">Tracé et distances approximatifs — service de routage indisponible.</span>` : ''}
         <!-- Le repère vert n'était expliqué nulle part : le mot « départ »
-             n'apparaissait pas sur l'écran. -->
-        <span class="route-summary-note">${icon('car')} Le repère vert est votre point de départ, ${esc(TOUR_START.address.split(',')[0])}.</span>
+             n'apparaissait pas sur l'écran. Sans départ il n'y a pas de repère à
+             expliquer, mais il faut dire pourquoi le tour commence à la visite 1. -->
+        <span class="route-summary-note">${mapStart
+          ? `${icon('car')} Le repère vert est votre point de départ, ${esc(mapStart.address.split(',')[0])}.`
+          : `${icon('pin')} Le tour commence à la première visite : aucun trajet d'approche n'est tracé ni compté.`}</span>
       </div>
     ` : ''}
 
@@ -3070,7 +3190,13 @@ function bindListEvents() {
       const t = state.tours.find(x => x.id === el.getAttribute('data-open-tour'));
       state.editingTourId = t.id;
       const buyer = state.buyers.find(b => b.id === t.buyerId);
-      state.draft = { buyer: buyer || null, date: t.date, time: t.time, stops: JSON.parse(JSON.stringify(t.stops)) };
+      state.draft = {
+        buyer: buyer || null, date: t.date, time: t.time,
+        // Un tour enregistré avant que le choix existe part de la position :
+        // c'était son comportement, il le garde.
+        origin: t.origin ? { ...t.origin } : newOrigin(),
+        stops: JSON.parse(JSON.stringify(t.stops)),
+      };
       state.dirty = false;
       state.screen = 'builder';
       render();
@@ -3290,6 +3416,14 @@ function bindBuilderEvents() {
   };
   const addBtn1 = document.getElementById('btn-add-destination');
   if (addBtn1) addBtn1.onclick = openDestModal;
+
+  const editOrigin = document.getElementById('btn-edit-origin');
+  if (editOrigin) editOrigin.onclick = () => {
+    const o = state.draft.origin || newOrigin();
+    state.originDraft = { mode: o.mode, address: o.address || '' };
+    state.modal = { type: 'origin' };
+    render();
+  };
 
 
   const optimizeBtn = document.getElementById('btn-optimize');
@@ -3628,7 +3762,11 @@ function buildTourMap() {
   if (!el || typeof L === 'undefined') return;
 
   const props = state.draft.stops.filter(s => s.type === 'property');
-  const sig = props.map(s => s.id).slice().sort().join(',');
+  // Le départ entre dans la signature : changer de point change le cadrage, donc
+  // la vue mémorisée ne vaut plus.
+  const start = originPoint(state.draft.origin);
+  const sig = (start ? 'o:' + coordKey(coordsFor(start)) + '|' : '')
+    + props.map(s => s.id).slice().sort().join(',');
   const sameSet = tourMap.sig === sig && tourMap.center && tourMap.zoom != null;
 
   const map = L.map(el, { scrollWheelZoom: false });
@@ -3642,7 +3780,7 @@ function buildTourMap() {
 
   // Le tracé part du point de départ : le premier segment est celui qui mène à
   // la première visite, pas celui qui relie les deux premières propriétés.
-  const pts = routePoints(props);
+  const pts = routePoints(props, state.draft.origin);
   const latlngs = pts.map(s => { const c = coordsFor(s); return [c.lat, c.lng]; });
 
   // One polyline per leg rather than a single line, so each segment carries its
@@ -3714,15 +3852,16 @@ function buildTourMap() {
 
   // Le départ n'est pas une visite : il ne prend pas de numéro. Losange vert
   // contre pastilles rondes marine — la forme distingue avant la couleur.
-  if (props.length) {
-    L.marker([TOUR_START.lat, TOUR_START.lng], {
-      title: TOUR_START.label,
+  if (props.length && start) {
+    const sc = coordsFor(start);
+    L.marker([sc.lat, sc.lng], {
+      title: start.label,
       icon: L.divIcon({
         className: 'tour-pin-wrap',
-        html: `<span class="tour-pin is-start" title="${esc(TOUR_START.label)}">${icon('car')}</span>`,
+        html: `<span class="tour-pin is-start" title="${esc(start.label)}">${icon('car')}</span>`,
         iconSize: [28, 28], iconAnchor: [14, 14],
       }),
-    }).addTo(map).bindPopup(`<strong>${esc(TOUR_START.label)}</strong><br>${esc(TOUR_START.address)}`);
+    }).addTo(map).bindPopup(`<strong>${esc(start.label)}</strong><br>${esc(start.address)}`);
   }
 
   props.forEach((s, i) => {
@@ -4044,6 +4183,7 @@ function bindModalEvents() {
       showToast(`${stopShortLabel(stop)} retiré du tour.`);
     };
   }
+  if (state.modal.type === 'origin') bindOriginModalEvents();
   if (state.modal.type === 'editBuyer') bindEditBuyerModalEvents();
   if (state.modal.type === 'editStop') {
     const savePause = document.getElementById('btn-save-edit-pause');
@@ -4063,6 +4203,46 @@ function escHandler(e) {
     document.removeEventListener('keydown', escHandler);
     document.removeEventListener('keydown', trapModalFocus);
   }
+}
+
+function bindOriginModalEvents() {
+  document.querySelectorAll('[data-origin-mode]').forEach(el => {
+    el.onclick = () => { state.originDraft.mode = el.getAttribute('data-origin-mode'); render(); };
+  });
+
+  const addr = document.getElementById('origin-address');
+  if (addr) {
+    // Les suggestions se recalculent à la frappe, donc on rerend. Le curseur est
+    // remis en fin de champ, sans quoi la saisie repartirait du début.
+    addr.oninput = () => {
+      state.originDraft.address = addr.value;
+      render();
+      const again = document.getElementById('origin-address');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+
+  document.querySelectorAll('[data-origin-sug]').forEach(el => {
+    el.onclick = () => { state.originDraft.address = el.getAttribute('data-origin-sug'); render(); };
+  });
+
+  const save = document.getElementById('btn-save-origin');
+  if (save) save.onclick = () => {
+    const d = state.originDraft;
+    if (d.mode === 'address' && !d.address.trim()) return;
+    state.draft.origin = d.mode === 'address'
+      ? { mode: 'address', address: d.address.trim() }
+      : { mode: d.mode, address: '' };
+    state.originDraft = null;
+    markDirtyIfSent();
+    closeModal();
+    // Ce que le courtier obtient, pas le champ qu'il a rempli : le message nomme
+    // le point retenu.
+    const start = originPoint(state.draft.origin);
+    showToast(start
+      ? `Départ depuis ${start.address.split(',')[0]}.`
+      : 'Le tour commence à la première visite.', 'success');
+  };
 }
 
 function bindEditBuyerModalEvents() {
