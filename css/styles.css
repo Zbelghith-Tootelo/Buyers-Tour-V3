@@ -1178,12 +1178,19 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .contact-pane { width: 100%; }
 .form-actions { display: flex; flex-direction: column; gap: 20px; width: 300px; }
 
-/* Barre d'outils de la liste. La recherche prend la place restante, le bouton
-   garde sa largeur : c'est le champ qui doit s'étirer quand la fenêtre change,
-   pas le libellé de l'action. Le bouton reste primaire — c'est la seule action
-   primaire de l'écran, son poids se règle par la largeur, pas en le dégradant
-   en contour, qui le ferait lire comme un filtre à côté d'un champ de recherche. */
-.list-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+/* Barre d'outils de la liste. Le bouton est écrit avant le champ dans le DOM
+   pour que l'empilement mobile le place en tête ; `row-reverse` rétablit ici
+   l'ordre visuel voulu — champ à gauche, bouton à droite. La recherche prend la
+   place restante et le bouton garde sa largeur : c'est le champ qui doit s'étirer
+   quand la fenêtre change, pas le libellé de l'action.
+
+   Le bouton reste primaire : c'est la seule action primaire de l'écran, son poids
+   se règle par la largeur, pas en le dégradant en contour — un bouton en contour
+   posé près d'un champ de recherche se lirait comme un filtre. */
+.list-toolbar {
+  display: flex; flex-direction: row-reverse; align-items: center;
+  gap: 16px; margin-bottom: 24px;
+}
 .list-toolbar .search-bar { flex: 1; min-width: 0; margin-bottom: 0; }
 .list-toolbar .btn { flex-shrink: 0; }
 
@@ -1319,10 +1326,12 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   .tabs-toggle { margin-bottom: 16px; }
   .search-bar { margin-bottom: 16px; }
   .tour-card-name, .tour-card-meta { font-size: 15px; }
-  /* À 430 px la colonne fait 398 px : un champ de recherche utilisable en réclame
-     ~220 et le bouton ~200. Les deux ne tiennent pas sur une ligne sans réduire
-     le bouton à un « + ». Ils s'empilent donc, chacun sur toute la largeur — la
-     cible la plus sûre au doigt (Fitts). */
+  /* À 430 px la colonne fait 398 px : un champ utilisable en réclame ~220 et le
+     bouton ~200. Les deux ne tiennent pas sur une ligne sans réduire le bouton à
+     un « + ». Ils s'empilent donc, chacun sur toute la largeur — la cible la plus
+     sûre au doigt (Fitts). `column` et non `column-reverse` : l'ordre du DOM place
+     déjà le bouton en tête, donc l'ordre visuel et l'ordre de tabulation
+     coïncident exactement là où l'empilement se lit comme une séquence. */
   .list-toolbar { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 20px; }
   .list-toolbar .btn { width: 100%; }
 

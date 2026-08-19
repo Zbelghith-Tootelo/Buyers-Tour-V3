@@ -1460,11 +1460,16 @@ function renderListScreen() {
          celle-ci — la seule chose qui varie ici — et passait sous la ligne de
          flottaison dès une dizaine de tours.
 
-         L'ordre du DOM est celui de l'écran aux deux tailles : recherche puis
-         bouton en ligne sur desktop, recherche au-dessus du bouton en colonne sur
-         mobile. Un empilement inversé aurait mis le bouton en tête sur mobile mais
-         séparé l'ordre visuel de l'ordre de tabulation (WCAG 2.4.3). -->
+         Les deux tailles veulent des ordres visuels opposés : recherche à gauche
+         du bouton en ligne, bouton au-dessus de la recherche en colonne. Un seul
+         DOM ne peut coïncider avec les deux. Le bouton est donc écrit en premier,
+         et c'est mobile qui tombe juste : là l'empilement se lit vraiment comme
+         une séquence, et un lecteur d'écran la parcourt sans voir l'ensemble.
+         Desktop porte l'écart, où il est bénin — les deux contrôles sont côte à
+         côte et saisis d'un seul regard, la tabulation atteint le bouton avant le
+         champ sans que le sens ni l'usage en souffrent (WCAG 2.4.3). -->
     <div class="list-toolbar">
+      <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
       <div class="search-bar">
         <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
              à l'œil. Le nom accessible dit ce que la recherche compare — un
@@ -1474,7 +1479,6 @@ function renderListScreen() {
           aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
         ${icon('search')}
       </div>
-      <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
     </div>
     <div class="tabs-toggle">
       <button class="${state.listTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming">À venir</button>
