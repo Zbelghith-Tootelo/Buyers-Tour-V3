@@ -1409,8 +1409,13 @@ function renderListScreen() {
     listHtml = `
       <div class="empty-state">
         <p>${q ? 'Aucun tour ne correspond à votre recherche.' : (state.listTab === 'upcoming' ? 'Aucun tour de visites à venir.' : 'Aucun tour de visites passé.')}</p>
+        ${''/* L'invitation nommait une action sans dire où la trouver : le bouton
+               est maintenant au-dessus de la liste, donc au-dessus de ce message.
+               On le nomme, comme le fait déjà l'état vide du constructeur — plutôt
+               que de répéter le bouton ici, ce qui mettrait deux fois la même
+               action primaire à l'écran. */}
         <p class="empty-sub">${!q
-          ? 'Créez votre premier tour pour commencer.'
+          ? 'Utilisez « Créer un tour de visites » pour commencer.'
           : anonymes
             ? `La recherche porte sur le nom de l'acheteur. ${anonymes} tour${anonymes > 1 ? 's n\'en ont' : ' n\'en a'} pas encore : effacez la recherche pour ${anonymes > 1 ? 'les' : 'le'} retrouver.`
             : 'Essayez un autre nom.'}</p>
@@ -1450,23 +1455,36 @@ function renderListScreen() {
   }
 
   return `
+    <!-- Barre d'outils de la liste : chercher à gauche, créer à droite. Placé
+         après la liste, le bouton voyait sa position dépendre de la longueur de
+         celle-ci — la seule chose qui varie ici — et passait sous la ligne de
+         flottaison dès une dizaine de tours.
+
+         Les deux tailles veulent des ordres visuels opposés : recherche à gauche
+         du bouton en ligne, bouton au-dessus de la recherche en colonne. Un seul
+         DOM ne peut coïncider avec les deux. Le bouton est donc écrit en premier,
+         et c'est mobile qui tombe juste : là l'empilement se lit vraiment comme
+         une séquence, et un lecteur d'écran la parcourt sans voir l'ensemble.
+         Desktop porte l'écart, où il est bénin — les deux contrôles sont côte à
+         côte et saisis d'un seul regard, la tabulation atteint le bouton avant le
+         champ sans que le sens ni l'usage en souffrent (WCAG 2.4.3). -->
+    <div class="list-toolbar">
+      <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
+      <div class="search-bar">
+        <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
+             à l'œil. Le nom accessible dit ce que la recherche compare — un
+             contact, pas une adresse — ce que le texte d'invite disait déjà mais
+             qu'il cesse de dire dès la première frappe. -->
+        <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
+          aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
+        ${icon('search')}
+      </div>
+    </div>
     <div class="tabs-toggle">
       <button class="${state.listTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming">À venir</button>
       <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past">Passé</button>
     </div>
-    <div class="search-bar">
-      <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
-           à l'œil. Le nom accessible dit ce que la recherche compare — un
-           contact, pas une adresse — ce que le texte d'invite disait déjà mais
-           qu'il cesse de dire dès la première frappe. -->
-      <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
-        aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
-      ${icon('search')}
-    </div>
     ${listHtml}
-    <div class="create-btn-wrap">
-      <button class="btn btn-primary btn-block" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
-    </div>
   `;
 }
 
