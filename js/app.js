@@ -1409,8 +1409,13 @@ function renderListScreen() {
     listHtml = `
       <div class="empty-state">
         <p>${q ? 'Aucun tour ne correspond à votre recherche.' : (state.listTab === 'upcoming' ? 'Aucun tour de visites à venir.' : 'Aucun tour de visites passé.')}</p>
+        ${''/* L'invitation nommait une action sans dire où la trouver : le bouton
+               est maintenant au-dessus de la liste, donc au-dessus de ce message.
+               On le nomme, comme le fait déjà l'état vide du constructeur — plutôt
+               que de répéter le bouton ici, ce qui mettrait deux fois la même
+               action primaire à l'écran. */}
         <p class="empty-sub">${!q
-          ? 'Créez votre premier tour pour commencer.'
+          ? 'Utilisez « Créer un tour de visites » pour commencer.'
           : anonymes
             ? `La recherche porte sur le nom de l'acheteur. ${anonymes} tour${anonymes > 1 ? 's n\'en ont' : ' n\'en a'} pas encore : effacez la recherche pour ${anonymes > 1 ? 'les' : 'le'} retrouver.`
             : 'Essayez un autre nom.'}</p>
@@ -1450,23 +1455,32 @@ function renderListScreen() {
   }
 
   return `
+    <!-- Barre d'outils de la liste : chercher à gauche, créer à droite. Placé
+         après la liste, le bouton voyait sa position dépendre de la longueur de
+         celle-ci — la seule chose qui varie ici — et passait sous la ligne de
+         flottaison dès une dizaine de tours.
+
+         L'ordre du DOM est celui de l'écran aux deux tailles : recherche puis
+         bouton en ligne sur desktop, recherche au-dessus du bouton en colonne sur
+         mobile. Un empilement inversé aurait mis le bouton en tête sur mobile mais
+         séparé l'ordre visuel de l'ordre de tabulation (WCAG 2.4.3). -->
+    <div class="list-toolbar">
+      <div class="search-bar">
+        <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
+             à l'œil. Le nom accessible dit ce que la recherche compare — un
+             contact, pas une adresse — ce que le texte d'invite disait déjà mais
+             qu'il cesse de dire dès la première frappe. -->
+        <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
+          aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
+        ${icon('search')}
+      </div>
+      <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
+    </div>
     <div class="tabs-toggle">
       <button class="${state.listTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming">À venir</button>
       <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past">Passé</button>
     </div>
-    <div class="search-bar">
-      <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
-           à l'œil. Le nom accessible dit ce que la recherche compare — un
-           contact, pas une adresse — ce que le texte d'invite disait déjà mais
-           qu'il cesse de dire dès la première frappe. -->
-      <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
-        aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
-      ${icon('search')}
-    </div>
     ${listHtml}
-    <div class="create-btn-wrap">
-      <button class="btn btn-primary btn-block" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
-    </div>
   `;
 }
 
