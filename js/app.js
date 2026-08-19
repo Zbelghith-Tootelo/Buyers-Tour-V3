@@ -1460,14 +1460,10 @@ function renderListScreen() {
          celle-ci — la seule chose qui varie ici — et passait sous la ligne de
          flottaison dès une dizaine de tours.
 
-         Les deux tailles veulent des ordres visuels opposés : recherche à gauche
-         du bouton en ligne, bouton au-dessus de la recherche en colonne. Un seul
-         DOM ne peut coïncider avec les deux. Le bouton est donc écrit en premier,
-         et c'est mobile qui tombe juste : là l'empilement se lit vraiment comme
-         une séquence, et un lecteur d'écran la parcourt sans voir l'ensemble.
-         Desktop porte l'écart, où il est bénin — les deux contrôles sont côte à
-         côte et saisis d'un seul regard, la tabulation atteint le bouton avant le
-         champ sans que le sens ni l'usage en souffrent (WCAG 2.4.3). -->
+         Créer d'abord, chercher ensuite, aux deux tailles : le bouton à gauche du
+         champ en ligne, au-dessus de lui en colonne. L'ordre du DOM est donc celui
+         de l'écran partout, et l'ordre de tabulation avec — aucun écart à aucun
+         palier (WCAG 2.4.3). -->
     <div class="list-toolbar">
       <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
       <div class="search-bar">
