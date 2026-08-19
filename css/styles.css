@@ -1178,7 +1178,14 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .contact-pane { width: 100%; }
 .form-actions { display: flex; flex-direction: column; gap: 20px; width: 300px; }
 
-.create-btn-wrap { margin-top: 12px; width: 325px; }
+/* Barre d'outils de la liste. La recherche prend la place restante, le bouton
+   garde sa largeur : c'est le champ qui doit s'étirer quand la fenêtre change,
+   pas le libellé de l'action. Le bouton reste primaire — c'est la seule action
+   primaire de l'écran, son poids se règle par la largeur, pas en le dégradant
+   en contour, qui le ferait lire comme un filtre à côté d'un champ de recherche. */
+.list-toolbar { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+.list-toolbar .search-bar { flex: 1; min-width: 0; margin-bottom: 0; }
+.list-toolbar .btn { flex-shrink: 0; }
 
 /* ---------- Mobile chrome (hidden on desktop) ---------- */
 
@@ -1312,7 +1319,12 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   .tabs-toggle { margin-bottom: 16px; }
   .search-bar { margin-bottom: 16px; }
   .tour-card-name, .tour-card-meta { font-size: 15px; }
-  .create-btn-wrap { width: 100%; }
+  /* À 430 px la colonne fait 398 px : un champ de recherche utilisable en réclame
+     ~220 et le bouton ~200. Les deux ne tiennent pas sur une ligne sans réduire
+     le bouton à un « + ». Ils s'empilent donc, chacun sur toute la largeur — la
+     cible la plus sûre au doigt (Fitts). */
+  .list-toolbar { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 20px; }
+  .list-toolbar .btn { width: 100%; }
 
   /* Forms */
   .form-actions { width: 100%; }
