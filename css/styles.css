@@ -394,11 +394,36 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 
 /* ---------- Tabs ---------- */
 
+/* Onglets — Figma « Immocontact / Touchbase », nœud 5239:13591.
+   L'onglet retenu ne se signale plus par un aplat marine mais par trois marques
+   qui se cumulent : fond éclairci, texte en gras marine, et un soulignement de
+   3 px. L'état ne repose donc pas sur la seule couleur (WCAG 1.4.1) — le poids du
+   texte et le trait le disent aussi.
+
+   Soulignements en ombre interne plutôt qu'en `border-bottom` : une bordure de
+   3 px contre 1 px décalerait le libellé actif d'un pixel vers le haut, alors que
+   dans la maquette les deux libellés sont exactement à la même hauteur (y=12,5).
+   L'ombre interne ne prend pas de place dans la boîte et se laisse découper par
+   l'arrondi, si bien que le trait épouse le coin comme dans la maquette. */
 .tabs-toggle { display: flex; height: 42px; margin-bottom: 28px; }
-.tabs-toggle button { flex: 1; border: 1px solid #D5DDE6; background: var(--blanc); color: #1A2740; font-size: 14px; font-weight: 500; cursor: pointer; }
-.tabs-toggle button:first-child { border-radius: 10px 0 0 10px; }
-.tabs-toggle button:last-child { border-radius: 0 10px 10px 0; }
-.tabs-toggle button.active { background: var(--bleu-principal); border-color: var(--bleu-principal); color: var(--blanc); }
+.tabs-toggle button {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px; border: none;
+  background: var(--bordures);
+  /* Pas de jeton pour ce gris de filet : il ne sert qu'ici, comme avant. */
+  box-shadow: inset 0 -1px 0 #D5DDE6;
+  color: var(--texte-secondaire);
+  font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.tabs-toggle button:first-child { border-radius: 12px 0 0 12px; }
+.tabs-toggle button:last-child { border-radius: 0 12px 12px 0; }
+.tabs-toggle button.active {
+  background: var(--lumiere-principale);
+  box-shadow: inset 0 -3px 0 var(--bleu-principal);
+  color: var(--bleu-principal);
+  font-weight: 700;
+}
 
 .search-bar { position: relative; margin-bottom: 28px; }
 .search-bar input { padding-right: 42px; border-color: #D5DDE6; }

@@ -1476,9 +1476,15 @@ function renderListScreen() {
         ${icon('search')}
       </div>
     </div>
+    <!-- L'onglet retenu se voyait, mais ne s'annonçait pas : un lecteur d'écran
+         lisait « À venir, bouton » sans dire lequel des deux est actif. Ce sont
+         deux boutons bascule, d'où aria-pressed — role="tab" exigerait un
+         tablist et un tabpanel que ce balisage n'a pas. -->
     <div class="tabs-toggle">
-      <button class="${state.listTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming">À venir</button>
-      <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past">Passé</button>
+      <button class="${state.listTab === 'upcoming' ? 'active' : ''}" data-tab="upcoming"
+        aria-pressed="${state.listTab === 'upcoming'}">À venir</button>
+      <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past"
+        aria-pressed="${state.listTab === 'past'}">Passé</button>
     </div>
     ${listHtml}
   `;
