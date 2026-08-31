@@ -283,10 +283,17 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   justify-content: center;
   gap: 10px;
   min-height: 42px;
-  padding: 10px 20px;
+  /* Marge interne, poids et interligne du composant « Bouton principal » de la
+     maquette Figma : semi-gras, interligne 24, 32 px sur les côtés. La maquette
+     se contredit sur la verticale — cadre de 42 px, mais 12 px de marge sur un
+     interligne de 24, ce qui en demanderait 48. C'est la hauteur du cadre qui
+     tranche : 8 px laissent le bouton à 42 px sur une ligne, et donnent quand
+     même de l'air à un libellé qui passe sur deux. */
+  padding: 8px 32px;
   border-radius: var(--radius-lg);
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
+  line-height: 24px;
   border: none;
   cursor: pointer;
   transition: background 0.15s ease, opacity 0.15s ease;
@@ -306,14 +313,18 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .btn-outline { background: var(--blanc); color: var(--bleu-principal); border: 1px solid var(--bleu-principal); }
 .btn-outline:hover { background: var(--lumiere-principale); }
 
-.btn-danger-outline { background: var(--blanc); color: var(--rouge-principal); border: 1px solid var(--rouge-principal); }
+/* La maquette borde « Supprimer » de bleu marine et n'en rougit que le libellé,
+   en gras : le filet appartient au système de boutons, l'alerte au mot. */
+.btn-danger-outline { background: var(--blanc); color: var(--rouge-principal); border: 1px solid var(--bleu-principal); font-weight: 700; }
 .btn-danger-outline:hover { background: var(--rouge-10); }
 
 .btn-danger { background: var(--rouge-principal); color: var(--blanc); }
 .btn-danger:hover { background: var(--rouge-dark); }
 
 
-.btn:disabled { background: var(--bordures); color: var(--texte-secondaire); cursor: not-allowed; }
+/* Désactivé : la maquette remplace le filet de la variante par un gris neutre,
+   sans quoi un bouton bordé de bleu marine continue de se proposer. */
+.btn:disabled { background: var(--bordures); color: var(--texte-secondaire); border: 1px solid #B1B1B1; cursor: not-allowed; }
 
 .btn-block { width: 100%; }
 
@@ -619,6 +630,10 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .tour-card-chevron svg { width: 18px; height: 18px; }
 
 .empty-state { text-align: center; padding: 56px 20px; color: var(--texte-secondaire); }
+/* Une seule phrase sur deux lignes : même taille, même interligne, et le rythme
+   de 26 px de la maquette au lieu d'un remplissage. */
+.empty-state.tour-empty { padding: 26px 20px 0; }
+.empty-state.tour-empty p { font-size: 16px; line-height: 24px; margin: 0; }
 .empty-state svg { width: 46px; height: 46px; color: #C5CBE0; margin-bottom: 14px; }
 .empty-state p { margin: 0 0 4px; font-size: 15px; }
 .empty-state .empty-sub { font-size: 13.5px; }
@@ -697,8 +712,43 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .field-static-note { font-size: 12px; font-weight: 500; color: var(--texte-secondaire); line-height: 1.35; }
 .footer-note.is-warn { color: #8a5a05; }
 
-.action-row { display: flex; gap: 12px; margin: 22px 0 20px; flex-wrap: wrap; }
-.action-row .btn { flex: 1; min-width: 200px; }
+/* ----- Entête du tour — maquette Figma 5239:13673 -----
+   La maquette empile ses blocs à 26 px et sépare chaque libellé de son contrôle
+   par 5 px. Portée limitée à .tour-head : elle ne décrit que cet écran, et les
+   classes .field / .field-label / .input servent partout ailleurs. */
+.tour-head { display: flex; flex-direction: column; gap: 26px; }
+.tour-head .field { margin-bottom: 0; }
+.tour-head .field-label { font-size: 14px; font-weight: 500; margin-bottom: 5px; }
+/* Le libellé de l'acheteur porte son propre style dans la maquette : 12 px en
+   semi-gras, là où Date et Heure restent à 14 px en medium. */
+.tour-head #lbl-acheteur { font-size: 12px; font-weight: 600; }
+.tour-head .field-row { gap: 19px; }
+
+/* Le champ de l'acheteur perd son pointillé : la maquette le donne en trait
+   plein, comme les autres champs. Le placeholder y est un gris de repos, pas un
+   bleu d'action — il n'y a pas de valeur à lire tant que rien n'est choisi. */
+.tour-head .readonly-chip { border-radius: 8px; }
+.tour-head .readonly-chip.is-empty {
+  border: 1px solid #D5DDE6;
+  font-size: 14px; font-weight: 500; color: #8D93A0;
+}
+
+/* Date et Heure : 40 px, coins à 10 px, filet plus soutenu, et la valeur en
+   Lexend — c'est le style de texte que la maquette réserve aux valeurs saisies.
+   Repli sur Inter si la police ne charge pas. */
+.tour-head .field-row .input {
+  height: 40px; padding: 0 10px;
+  border: 1px solid #AABBCC; border-radius: 10px;
+  font-family: 'Lexend', var(--font-family);
+  font-size: 14px; font-weight: 400; color: #1A2740;
+}
+
+.action-row { display: flex; gap: 20px; margin: 26px 0; flex-wrap: wrap; }
+/* La maquette pose 32 px de marge interne sur des boutons de 320 px, où c'est la
+   largeur qui décide et la marge ne se voit pas. Sous 1000 px de colonne, ces
+   32 px suffisent à casser « Ajouter une destination » sur deux lignes : on les
+   laisse se comprimer ici, sans rien changer à la largeur de référence. */
+.action-row .btn { flex: 1; min-width: 200px; padding-inline: 16px; }
 
 .section-label { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
 
@@ -849,7 +899,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .banner-edit-btn:hover { opacity: 1; }
 .banner-edit-btn svg { width: 15px; height: 15px; }
 
-.footer-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; max-width: 340px; }
+.footer-actions { display: flex; flex-direction: column; gap: 20px; margin-top: 26px; max-width: 320px; }
 
 /* ---------- Modal ---------- */
 

@@ -1811,9 +1811,13 @@ function renderBuilderScreen() {
   })();
 
   const stopsHtml = draft.stops.length === 0 ? `
-    <div class="empty-state" style="padding:36px 20px;">
+    <!-- Une seule phrase sur deux lignes, donc deux lignes de même taille : la
+         maquette ne hiérarchise pas ici, contrairement à l'état vide de la liste
+         où le second niveau porte une consigne distincte. Le rythme de 26 px
+         remplace le remplissage posé en ligne. -->
+    <div class="empty-state tour-empty">
       <p>Aucune destination ajoutée pour l'instant.</p>
-      <p class="empty-sub">Utilisez « Ajouter une destination » pour composer le tour.</p>
+      <p>Utilisez « Ajouter une destination » pour composer le tour.</p>
     </div>
   ` : rows.map(({ stop, start, travelBefore, conflict, sharesSlot }, i) => {
     const prevStop = draft.stops[i - 1];
@@ -2013,6 +2017,11 @@ function renderBuilderScreen() {
 
   return `
     ${archivePanel}
+    <!-- Entête du tour d'après la maquette Figma 5239:13673. Enveloppe dédiée :
+         la maquette ne couvre que cet écran, et ses mesures — champs de 40 px,
+         rythme de 26 px, valeurs en Lexend — ne valent que pour lui. Les
+         appliquer aux classes globales repeindrait les sept autres écrans. -->
+    <div class="tour-head">
     ${buyerField}
     <div class="field-row">
       <div class="field">
@@ -2033,10 +2042,12 @@ function renderBuilderScreen() {
         ${timeField}
       </div>
     </div>
+    </div>
 
     ${validationPanel}
 
-    <p class="section-label" style="margin-top:8px;">Tour :</p>
+    <!-- La maquette supprime le libellé « Tour : » : les trois boutons disent
+         déjà ce qu'ils font, et l'intitulé ne coiffait aucune section fermée. -->
     <div class="action-row">
       <button class="btn btn-outline" id="btn-add-destination">${icon('plus')} Ajouter une destination</button>
       <button class="btn btn-outline" id="btn-optimize"${optiWhy.a}>Optimiser le tour</button>${optiWhy.n}
