@@ -25,7 +25,8 @@ Statuts d'un tour, tous dérivés : `brouillon · en_cours · confirme · non_en
 1. **Liste** — à venir / passés, rangés par date. Un tour daté d'hier bascule seul dans « Passé », et se ramène d'un bouton.
 2. **Nommer l'acheteur** — dès le bac à sable, pour que deux brouillons ne se ressemblent pas. Le courriel n'est exigé qu'à l'envoi.
 3. **Composer** — propriétés du catalogue, hors catalogue, arrêts libres, pauses. Réordonnancement par glisser-déposer tant que rien n'est parti.
-4. **Optimiser** — depuis le point de départ du courtier, pas depuis la première propriété.
+4. **Optimiser et situer** — l'optimisation part du point de départ du courtier, pas de la première
+   propriété. La carte se déplie dans la page même, sous la synthèse du trajet.
 5. **Envoyer** — chaque demande peut partir seule, ou en lot avec sélection des propriétés.
 6. **Traiter les réponses** — confirmation, contre-proposition, refus, annulation après confirmation, absence de réponse à 48 h. Chacune a sa sortie sous l'arrêt concerné.
 7. **Partager à l'acheteur** — une fois les visites confirmées. Le tour signale s'il n'est plus à jour depuis l'envoi.
@@ -51,7 +52,7 @@ Immocontact et Touchbase, logotype compris.
 
 ## Accessibilité
 
-Vérifié à chaque livraison, sur liste, tour, carte et compte rendu :
+Vérifié à chaque livraison, sur liste, tour et compte rendu :
 
 - contrastes WCAG AA sur tout texte affiché, calculés nœud par nœud ;
 - cibles tactiles ≥ 24 px (WCAG 2.5.8), hors attribution Leaflet imposée par sa licence ;

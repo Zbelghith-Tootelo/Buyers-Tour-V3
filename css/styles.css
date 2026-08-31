@@ -191,7 +191,6 @@ a { color: inherit; text-decoration: none; }
    est la racine, s'en passe. */
 body[data-screen="contact"] .topbar-back,
 body[data-screen="builder"] .topbar-back,
-body[data-screen="map"] .topbar-back,
 body[data-screen="report"] .topbar-back { display: inline-flex; }
 .topbar-back:hover { color: var(--bleu-secondaire); }
 .topbar-back:focus-visible { outline: var(--focus-ring); outline-offset: 3px; border-radius: var(--radius-sm); }
@@ -1222,20 +1221,6 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   box-shadow: var(--shadow-sm);
 }
 
-.route-summary {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
-  margin-top: 12px; font-size: 13.5px; color: var(--texte-secondaire);
-}
-.route-summary-item strong { color: var(--texte-principal); font-weight: 700; }
-.route-summary-sep { width: 1px; height: 14px; background: var(--bordures); }
-/* Les notes passent à la ligne : ce sont des phrases, pas des mesures, et les
-   aligner avec les chiffres les fait lire comme une quatrième statistique. */
-.route-summary-note {
-  flex-basis: 100%; display: flex; align-items: center; gap: 6px;
-  font-size: 12.5px; font-style: italic; color: var(--texte-secondaire);
-}
-.route-summary-note svg { width: 14px; height: 14px; flex-shrink: 0; font-style: normal; }
-
 /* ----- Panneau de synthèse du trajet — Figma 5551:2871 (replié) / 5551:2174 -----
    Le trajet se lit là où il se compose. Le panneau tient les chiffres, le point
    de départ, et le dépliage de la carte.
@@ -1302,7 +1287,6 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .rss-map { display: flex; flex-direction: column; gap: 8px; }
 .rss-map #map-slot { display: block; }
 .rss-note { margin: 0; font-size: 12.5px; font-style: italic; color: var(--texte-secondaire); }
-.rss-full { align-self: flex-start; }
 
 /* ---------- Misc ---------- */
 

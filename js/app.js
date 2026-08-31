@@ -415,7 +415,8 @@ async function ensureRouteGeometry(props) {
   } catch (e) {
     routeGeometry.set(sig, { status: 'error' });
   }
-  if (state.screen === 'map') render();
+  // Le tracé routier vient d'arriver : on repeint si la carte est visible.
+  if (state.mapOpen && state.screen === 'builder') render();
 }
 
 // Real driving time when OSRM has answered for this pair, otherwise a
@@ -1267,12 +1268,6 @@ function tourStartIsFixed(draft) {
   return !!(first && first.type === 'property' && first.locked && first.lockedStart);
 }
 
-// Réordonner suppose qu'au moins un arrêt se saisisse. Quand tout est engagé,
-// le titre et les poignées promettent un geste que le modèle interdit.
-function tourIsReorderable(draft) {
-  return draft.stops.some(stopIsDraggable);
-}
-
 /* ---------------- Rendering ---------------- */
 
 const NAV_ITEMS = [
@@ -1356,7 +1351,6 @@ function render() {
   // sans avoir rien envoyé.
   else if (state.screen === 'contact') { setTopbarTitle(state.contactPurpose === 'create' ? 'Créer un tour de visites' : 'Choisir l\'acheteur'); main.innerHTML = renderContactScreen(); }
   else if (state.screen === 'builder') { setTopbarTitle(builderTitle()); main.innerHTML = renderBuilderScreen(); }
-  else if (state.screen === 'map') { setTopbarTitle('Carte du tour'); main.innerHTML = renderMapScreen(); }
   else if (state.screen === 'report') { setTopbarTitle('Compte rendu de visite'); main.innerHTML = renderReportScreen(); }
   else if (state.screen === 'menu') { setTopbarTitle('Menu'); main.innerHTML = renderMenuScreen(); }
   document.body.dataset.screen = state.screen;
@@ -1835,7 +1829,6 @@ function renderBuilderScreen() {
             <div id="map-slot"></div>
             ${routeStatus === 'loading' ? '<p class="rss-note">Tracé approximatif — calcul de l\'itinéraire routier…</p>' : ''}
             ${routeStatus === 'error' ? '<p class="rss-note">Tracé et distances approximatifs — service de routage indisponible.</p>' : ''}
-            <button class="btn-inline rss-full" id="btn-map-fullscreen">Ouvrir la carte en plein écran</button>
           </div>` : ''}
       </section>`;
   })();
@@ -2959,62 +2952,6 @@ function suggestionRow(sug) {
     </div>`;
 }
 
-function renderMapScreen() {
-  const draft = state.draft;
-  const rows = computeSchedule(draft);
-  const totals = routeTotals(draft.stops, draft.origin);
-
-  const stopsHtml = draft.stops.length === 0 ? '' : rows
-    .map(({ stop, start }) => renderStopCard(stop, start, { variant: 'map' })).join('');
-
-  const canOptimize = totals.count >= 2;
-  const optiMapWhy = whenBlocked('btn-optimize-map', canOptimize,
-    'Ajoutez au moins deux propriétés : l\'optimisation compare des trajets entre elles.');
-  // Kick the routing off here rather than in buildTourMap: ensureRouteGeometry
-  // marks the signature 'loading' synchronously, before its first await, so the
-  // status read just below is accurate on the very first paint.
-  const props = draft.stops.filter(s => s.type === 'property');
-  const pts = routePoints(props, draft.origin);
-  ensureRouteGeometry(pts);
-  const routeStatus = (routeGeometry.get(routeSignature(pts)) || {}).status;
-  const mapStart = originPoint(draft.origin);
-
-  return `
-    <div id="map-slot"></div>
-    ${canOptimize ? `
-      <div class="route-summary">
-        <span class="route-summary-item"><strong>${totals.count}</strong> arrêts</span>
-        <span class="route-summary-sep"></span>
-        <span class="route-summary-item"><strong>${formatKm(totals.km)}</strong> de trajet</span>
-        <span class="route-summary-sep"></span>
-        <span class="route-summary-item"><strong>${formatMinutes(totals.min)}</strong> sur la route</span>
-        ${routeStatus === 'loading' ? `<span class="route-summary-note">Tracé approximatif — calcul de l'itinéraire routier…</span>` : ''}
-        ${routeStatus === 'error' ? `<span class="route-summary-note">Tracé et distances approximatifs — service de routage indisponible.</span>` : ''}
-        <!-- Le repère vert n'était expliqué nulle part : le mot « départ »
-             n'apparaissait pas sur l'écran. Sans départ il n'y a pas de repère à
-             expliquer, mais il faut dire pourquoi le tour commence à la visite 1. -->
-        <span class="route-summary-note">${mapStart
-          ? `${icon('car')} Le repère vert est votre point de départ, ${esc(mapStart.address.split(',')[0])}.`
-          : `${icon('pin')} Le tour commence à la première visite : aucun trajet d'approche n'est tracé ni compté.`}</span>
-      </div>
-    ` : ''}
-
-    <!-- Même action que dans le tour, donc même nom : « Optimiser par distance »
-         décrivait l'algorithme, pas ce que le courtier obtient. -->
-    <button class="btn btn-outline btn-block" id="btn-optimize-map" style="margin-top:16px;"${optiMapWhy.a}>
-      Optimiser le tour
-    </button>${optiMapWhy.n}
-
-    <!-- Le titre suit ce que le modèle autorise : il annonçait « Réordonner »
-         au-dessus d'arrêts tous épinglés, poignées comprises. -->
-    <p class="section-label" style="margin-top:20px;">${tourIsReorderable(draft)
-      ? 'Réordonner les arrêts :'
-      : 'Arrêts du tour :'}</p>
-    ${tourIsReorderable(draft) ? '' : `
-      <p class="helper-text" style="margin:-6px 0 12px;">Toutes les demandes sont parties : les heures sont des engagements pris auprès des courtiers inscripteurs. Elles se modifient depuis le tour, avec « Modifier la visite ».</p>`}
-    <div>${stopsHtml}</div>`;
-}
-
 function ratingStarsHtml(group, value, labelId) {
   return `
     <div class="rating-stars" data-rating-group="${group}"${labelId ? ` aria-labelledby="${labelId}"` : ''}>
@@ -3204,10 +3141,9 @@ function bindEvents() {
   const menuBtn = document.getElementById('mobile-menu-btn');
   if (menuBtn) menuBtn.onclick = () => leaveTour(() => { state.screen = 'menu'; state.draft = null; });
 
-  // Revenir depuis la carte ou le compte rendu reste dans le tour : rien n'est
-  // perdu. Ne sont gardées que les sorties qui abandonnent le brouillon.
+  // Revenir depuis le compte rendu reste dans le tour : rien n'est perdu. Ne
+  // sont gardées que les sorties qui abandonnent le brouillon.
   const goBack = () => {
-    if (state.screen === 'map') { state.screen = 'builder'; render(); return; }
     if (state.screen === 'report') { state.screen = 'builder'; state.reportStopId = null; state.reportDraft = null; render(); return; }
     if (state.screen === 'contact' && state.contactPurpose !== 'create') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
     leaveTour(() => {
@@ -3226,7 +3162,6 @@ function bindEvents() {
   if (state.screen === 'list') bindListEvents();
   if (state.screen === 'contact') bindContactEvents();
   if (state.screen === 'builder') bindBuilderEvents();
-  if (state.screen === 'map') bindMapEvents();
   if (state.screen === 'report') bindReportEvents();
   bindModalEvents();
 }
@@ -3486,11 +3421,6 @@ function bindBuilderEvents() {
   const toggleMap = document.getElementById('btn-toggle-map');
   if (toggleMap) toggleMap.onclick = () => { state.mapOpen = !state.mapOpen; render(); };
 
-  // L'écran carte reste joignable : il porte la liste réordonnable en pleine
-  // largeur, ce que le panneau ne remplace pas. Sans cette porte il deviendrait
-  // du code mort, son seul accès ayant disparu de la rangée d'actions.
-  const fullMap = document.getElementById('btn-map-fullscreen');
-  if (fullMap) fullMap.onclick = () => { state.screen = 'map'; render(); };
 
   // Editing a property stop's own pencil reopens the "Demande de visite" form
   // pre-filled, so the requested time and message can be adjusted.
@@ -3994,13 +3924,6 @@ function buildTourMap() {
   }
 
   map.invalidateSize();
-}
-
-function bindMapEvents() {
-  const optimizeBtn = document.getElementById('btn-optimize-map');
-  if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
-
-  bindDragAndDrop();
 }
 
 function bindReportEvents() {
