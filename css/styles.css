@@ -459,11 +459,16 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 }
 .date-group-label:first-child { margin-top: 0; }
 
+/* min-height et non height : à 375 px, « Le tour commence à 14h30 • 2/3
+   confirmées » passe à la ligne, et le nom suivi de sa pastille de statut aussi.
+   Avec une hauteur figée, le texte sortait de la carte — 66 px de contenu dans
+   une boîte de 55, mesuré sur deux cartes sur cinq. La carte suit son contenu ;
+   les 55 px de la maquette restent le plancher. */
 .tour-card {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 55px;
+  min-height: 55px;
   background: var(--blanc);
   border: 1px solid var(--bordures);
   border-radius: 10px;
@@ -478,8 +483,10 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .tour-card-glyph { width: 30px; height: 30px; }
 
 .tour-card-body { flex: 1; min-width: 0; }
-.tour-card-name { font-size: 16px; font-weight: 700; color: var(--bleu-principal); margin: 0 0 2px; line-height: 1; }
-.tour-card-meta { font-size: 16px; color: var(--bleu-principal); margin: 0; line-height: 1; }
+/* Un interligne de 1 ne laisse rien entre deux lignes : acceptable tant que
+   chaque paragraphe tient sur une seule, illisible dès qu'il passe à la ligne. */
+.tour-card-name { font-size: 16px; font-weight: 700; color: var(--bleu-principal); margin: 0 0 2px; line-height: 1.25; }
+.tour-card-meta { font-size: 16px; color: var(--bleu-principal); margin: 0; line-height: 1.25; }
 .tour-card-meta strong { font-weight: 700; }
 
 /* Badge de statut du tour, décliné par ton. */
@@ -664,7 +671,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 
 /* ---------- Builder screen ---------- */
 
-.readonly-chip { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); background: var(--blanc); font-weight: 600; color: var(--bleu-secondaire); cursor: pointer; }
+.readonly-chip { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 0 14px; border: 1px solid var(--bordures); border-radius: var(--radius-lg); background: var(--blanc); font-weight: 600; color: var(--bleu-secondaire); cursor: pointer; }
 .readonly-chip svg { width: 16px; height: 16px; color: var(--texte-secondaire); }
 /* Champ vide : le pointillé annonce une place à remplir plutôt qu'une valeur
    absente, et le texte reste une question à laquelle on peut ne pas répondre. */
