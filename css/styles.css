@@ -1469,9 +1469,8 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
      là pour ça. */
   .tour-map { height: 240px; }
   .rss-head { flex-direction: column; }
-  .rss-toggle { align-self: stretch; justify-content: space-between; min-height: 44px; }
+  .rss-toggle { align-self: flex-end; min-height: 44px; }
   .search-bar { margin-bottom: 16px; }
-  .tour-card-name, .tour-card-meta { font-size: 15px; }
   /* À 430 px la colonne fait 398 px : un champ utilisable en réclame ~220 et le
      bouton ~200. Les deux ne tiennent pas sur une ligne sans réduire le bouton à
      un « + ». Ils s'empilent donc, chacun sur toute la largeur — la cible la plus
