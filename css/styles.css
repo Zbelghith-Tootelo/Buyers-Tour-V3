@@ -447,7 +447,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   font-size: 14px;
   font-weight: 700;
   color: var(--texte-principal);
-  margin: 16px 0;
+  margin: 24px 0 16px;
 }
 .date-group-label::before, .date-group-label::after {
   content: '';
@@ -471,7 +471,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   border: 1px solid var(--bordures);
   border-radius: 10px;
   padding: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   cursor: pointer;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
