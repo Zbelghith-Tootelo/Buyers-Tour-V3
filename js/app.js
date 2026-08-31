@@ -1812,24 +1812,23 @@ function renderBuilderScreen() {
       ? (routeGeometry.get(routeSignature(routePoints(draft.stops.filter(s => s.type === 'property'), draft.origin))) || {}).status
       : null;
 
+    // La note de tracé prend place au bout des mesures plutôt que sous la carte :
+    // elle ne décrit pas la carte, elle qualifie ces chiffres-là — approximatifs
+    // tant que le service de routage n'a pas répondu.
+    if (routeStatus === 'loading') stats.push('<span class="stat-note">Tracé approximatif de l\'itinéraire routier…</span>');
+    if (routeStatus === 'error') stats.push('<span class="stat-note">Tracé et distances approximatifs — service de routage indisponible.</span>');
+
     return `
       <section class="route-summary-section${state.mapOpen ? ' is-open' : ''}">
         <div class="rss-head">
-          <div class="rss-facts">
-            <div class="start-info">${startLine}</div>
-            <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
-          </div>
+          <div class="start-info">${startLine}</div>
           <button class="rss-toggle" id="btn-toggle-map"
             aria-expanded="${state.mapOpen}" aria-controls="rss-map">
             Afficher sur la carte ${icon(state.mapOpen ? 'chevronUp' : 'chevronRight')}
           </button>
         </div>
-        ${state.mapOpen ? `
-          <div class="rss-map" id="rss-map">
-            <div id="map-slot"></div>
-            ${routeStatus === 'loading' ? '<p class="rss-note">Tracé approximatif — calcul de l\'itinéraire routier…</p>' : ''}
-            ${routeStatus === 'error' ? '<p class="rss-note">Tracé et distances approximatifs — service de routage indisponible.</p>' : ''}
-          </div>` : ''}
+        ${state.mapOpen ? `<div class="rss-map" id="rss-map"><div id="map-slot"></div></div>` : ''}
+        <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
       </section>`;
   })();
 

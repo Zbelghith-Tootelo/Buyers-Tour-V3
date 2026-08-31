@@ -1236,8 +1236,11 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
   display: flex; flex-direction: column; gap: 10px;
   margin-bottom: 10px;
 }
-.rss-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.rss-facts { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* Carte au centre, chiffres en légende dessous : c'est l'équilibre que donne la
+   maquette. L'entête ne garde que le départ et la bascule, tous deux d'une seule
+   ligne, donc centrés l'un sur l'autre. */
+.rss-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rss-head .start-info { flex: 1; min-width: 0; }
 
 .stats-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .stat-item { font-size: 15px; color: var(--texte-secondaire); white-space: nowrap; }
@@ -1245,6 +1248,9 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 /* Puce et non barre verticale : la maquette sépare des mesures de même rang, pas
    des sections. Elle disparaît quand la rangée passe à la ligne. */
 .stat-sep { width: 4px; height: 4px; border-radius: 50%; background: #C5CBE0; flex-shrink: 0; }
+/* Dernier élément de la ligne : même taille que les libellés, mais en italique —
+   elle nuance les chiffres, elle n'en est pas un de plus. */
+.stat-note { font-size: 15px; font-style: italic; color: var(--texte-secondaire); }
 
 /* Bloc et non rangée de flex : la commande d'édition vit dans la phrase, donc
    elle suit la dernière ligne du texte au lieu de s'orpheliner sous l'adresse
@@ -1284,9 +1290,7 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .rss-toggle:hover { text-decoration: underline; }
 .rss-toggle svg { width: 14px; height: 14px; }
 
-.rss-map { display: flex; flex-direction: column; gap: 8px; }
 .rss-map #map-slot { display: block; }
-.rss-note { margin: 0; font-size: 12.5px; font-style: italic; color: var(--texte-secondaire); }
 
 /* ---------- Misc ---------- */
 
