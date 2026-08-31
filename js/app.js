@@ -1805,11 +1805,11 @@ function renderBuilderScreen() {
     const startLine = originStart
       ? `<span class="start-text"><span class="start-dot"></span>Point de départ,
            <strong>${esc(originStart.address.split(',')[0])}</strong>
-           <span class="dot">•</span> départ vers ${heureDepart}</span>
-         <button class="banner-edit-btn" id="btn-edit-origin"
-           title="Modifier le point de départ" aria-label="Modifier le point de départ">${icon('pencil')}</button>`
-      : `<span class="start-text"><span class="start-dot is-none"></span>Le tour commence à la première visite.</span>
-         <button class="btn-inline" id="btn-edit-origin">Choisir un départ</button>`;
+           <span class="dot">•</span> départ vers ${heureDepart}
+           <button class="banner-edit-btn" id="btn-edit-origin"
+             title="Modifier le point de départ" aria-label="Modifier le point de départ">${icon('pencil')}</button></span>`
+      : `<span class="start-text"><span class="start-dot is-none"></span>Le tour commence à la première visite.
+           <button class="btn-inline" id="btn-edit-origin">Choisir un départ</button></span>`;
 
     // Le routage se déclenche au dépliage seulement : tant que la carte est
     // fermée, les distances de repli suffisent et rien ne part sur le réseau.
@@ -1825,7 +1825,7 @@ function renderBuilderScreen() {
             <div class="start-info">${startLine}</div>
             <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
           </div>
-          <button class="btn-inline rss-toggle" id="btn-toggle-map"
+          <button class="rss-toggle" id="btn-toggle-map"
             aria-expanded="${state.mapOpen}" aria-controls="rss-map">
             Afficher sur la carte ${icon(state.mapOpen ? 'chevronUp' : 'chevronRight')}
           </button>

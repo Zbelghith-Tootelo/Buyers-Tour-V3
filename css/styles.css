@@ -1261,7 +1261,10 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
    des sections. Elle disparaît quand la rangée passe à la ligne. */
 .stat-sep { width: 4px; height: 4px; border-radius: 50%; background: #C5CBE0; flex-shrink: 0; }
 
-.start-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Bloc et non rangée de flex : la commande d'édition vit dans la phrase, donc
+   elle suit la dernière ligne du texte au lieu de s'orpheliner sous l'adresse
+   quand celle-ci passe à la ligne — ce qui arrivait au doigt. */
+.start-info { display: block; }
 /* Pastille en ligne dans le texte et non frère de flex : sinon elle se retrouve
    seule sur sa ligne dès que l'adresse passe à la ligne. */
 .start-dot {
@@ -1272,13 +1275,28 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 .start-text { font-size: 14px; color: var(--texte-secondaire); }
 .start-text strong { font-weight: 600; color: var(--texte-principal); }
 .start-text .dot { margin: 0 5px; }
-/* Flex et non simple bouton : la règle globale `svg { display: block }` mettrait
-   le chevron à la ligne, sous le libellé. */
+.start-text .banner-edit-btn { vertical-align: middle; margin-left: 2px; }
+.start-text .btn-inline { vertical-align: middle; margin-left: 6px; }
+/* Ni contour ni fond : c'est ce que donne la maquette (5551:2192), un libellé et
+   son chevron. Le bouton ne reprend donc pas .btn-inline, sinon il faudrait en
+   annuler la moitié des propriétés.
+
+   Flex et non simple bouton : la règle globale `svg { display: block }` mettrait
+   le chevron à la ligne, sous le libellé.
+
+   Sans boîte, l'affordance tient à la couleur et au geste : bleu marine comme
+   toute action de cette interface, et un soulignement au survol — un texte sans
+   contour ni retour au survol ne se donne pas pour cliquable. La hauteur reste
+   au-dessus du minimum de 24 px de WCAG 2.5.8. */
 .rss-toggle {
   display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap;
   flex-shrink: 0; align-self: flex-start; white-space: nowrap;
-  color: var(--bleu-principal); font-size: 15px;
+  background: none; border: none; padding: 8px 0; min-height: 34px;
+  border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 15px; font-weight: 700;
+  color: var(--bleu-principal); cursor: pointer;
 }
+.rss-toggle:hover { text-decoration: underline; }
 .rss-toggle svg { width: 14px; height: 14px; }
 
 .rss-map { display: flex; flex-direction: column; gap: 8px; }
