@@ -840,6 +840,7 @@ const state = {
   newProperty: null,        // formulaire « Ajouter une propriété inexistante »
   newPropertyTouched: false, // les champs manquants ne sont signalés qu'après un premier envoi
   originDraft: null,        // choix du point de départ en cours : { mode, address }
+  mapOpen: false,           // panneau de trajet déplié — replié par défaut, la carte reste un choix
   insertBeforeId: null,     // id de l'étape avant laquelle insérer la prochaine destination
   dragStopId: null,
   sendSelection: null,      // ids des propriétés cochées dans l'envoi groupé
@@ -1361,6 +1362,8 @@ function render() {
   document.body.dataset.screen = state.screen;
   renderModal();
   bindEvents();
+  // Après bindEvents : l'emplacement doit exister dans le DOM fraîchement rendu.
+  syncTourMap();
   syncModalFocus();
 }
 
@@ -1771,43 +1774,69 @@ function renderBuilderScreen() {
   const tally = validationTally(liveTour);
   const bannerEditTitle = 'Insérer une pause, un arrêt ou une propriété à cet endroit du tour';
 
-  // Heure à laquelle il faut partir pour être à l'heure à la première visite.
-  // Purement informatif : les heures des visites sont des engagements pris
-  // auprès des courtiers inscripteurs, le trajet initial ne les décale pas.
-  //
-  // La ligne existe dans les trois cas, y compris quand le tour commence à la
-  // première visite : c'est le seul endroit d'où le départ se définit, et un
-  // élément qui disparaît emporte sa commande avec lui (Nielsen #6). La commande
-  // est nommée plutôt que réduite à un crayon — « modifier » ne dit pas de quoi
-  // il s'agit quand c'est la seule chose à cliquer de la ligne.
+  /* ----- Panneau de synthèse du trajet — maquettes Figma 5551:2871 / 5551:2174 -----
+     « Afficher sur la carte » cesse d'être un écran à part pour devenir le
+     dépliage de ce panneau : le trajet se lit là où il se compose.
+
+     Le panneau absorbe l'ancienne note de départ verte, qui disait trois choses
+     dont deux étaient déjà dites ailleurs — l'adresse de départ, que le panneau
+     porte, et le trajet d'approche, qu'affiche le bandeau au-dessus de la
+     première visite. Ne restait d'unique que l'heure à laquelle partir : elle
+     rejoint les statistiques, dont elle a la nature, un nombre déduit du trajet.
+
+     Pas de panneau sans arrêt : la maquette de l'état vide n'en a pas, et il n'y
+     a ni distance ni départ à annoncer avant la première destination. */
   const firstProp = rows.find(r => r.stop.type === 'property');
   const originStart = originPoint(draft.origin);
-  const departureHtml = !firstProp ? '' : (() => {
-    if (!originStart) {
-      return `
-        <div class="departure-note is-none">
-          <span class="departure-icon">${icon('pin')}</span>
-          <span class="departure-text">
-            <strong>Le tour commence à la première visite.</strong>
-            Aucun trajet d'approche n'est compté.
-          </span>
-          <button class="btn-inline departure-edit" id="btn-edit-origin">Choisir un départ</button>
-        </div>`;
-    }
-    const trajet = geoTravelMinutes(coordsFor(originStart), coordsFor(firstProp.stop));
-    // Sa propre adresse : le courtier n'a pas besoin du code postal. En mode
-    // position on nomme aussi la source, sinon l'adresse a l'air arbitraire.
-    const rue = esc(originStart.address.split(',')[0]);
-    const lieu = draft.origin.mode === 'position' ? `de votre position, ${rue}` : `de ${rue}`;
+  const totals = routeTotals(draft.stops, draft.origin);
+  const summaryHtml = !firstProp ? '' : (() => {
+    const stat = (n, l) => `<span class="stat-item"><strong>${n}</strong> ${l}</span>`;
+    const stats = [
+      stat(totals.count, `arrêt${totals.count > 1 ? 's' : ''}`),
+      stat(formatKm(totals.km), 'de trajet'),
+      stat(formatMinutes(totals.min), 'sur la route'),
+    ];
+    // L'heure de départ tient à la ligne du départ et non aux mesures : elle
+    // appartient au lieu d'où l'on part, et « 14h05 départ » se lirait à l'envers.
+    const heureDepart = originStart
+      ? minutesToLabel(firstProp.start - geoTravelMinutes(coordsFor(originStart), coordsFor(firstProp.stop)))
+      : null;
+
+    const startLine = originStart
+      ? `<span class="start-text"><span class="start-dot"></span>Point de départ,
+           <strong>${esc(originStart.address.split(',')[0])}</strong>
+           <span class="dot">•</span> départ vers ${heureDepart}</span>
+         <button class="btn-inline" id="btn-edit-origin">Modifier</button>`
+      : `<span class="start-text"><span class="start-dot is-none"></span>Le tour commence à la première visite.</span>
+         <button class="btn-inline" id="btn-edit-origin">Choisir un départ</button>`;
+
+    // Le routage se déclenche au dépliage seulement : tant que la carte est
+    // fermée, les distances de repli suffisent et rien ne part sur le réseau.
+    if (state.mapOpen) ensureRouteGeometry(routePoints(draft.stops.filter(s => s.type === 'property'), draft.origin));
+    const routeStatus = state.mapOpen
+      ? (routeGeometry.get(routeSignature(routePoints(draft.stops.filter(s => s.type === 'property'), draft.origin))) || {}).status
+      : null;
+
     return `
-      <div class="departure-note">
-        <span class="departure-icon">${icon('car')}</span>
-        <span class="departure-text">
-          <strong>Départ vers ${minutesToLabel(firstProp.start - trajet)}</strong> ${lieu}
-          <span class="dot">•</span> ${trajet} min jusqu'à la première visite
-        </span>
-        <button class="btn-inline departure-edit" id="btn-edit-origin">Modifier</button>
-      </div>`;
+      <section class="route-summary-section${state.mapOpen ? ' is-open' : ''}">
+        <div class="rss-head">
+          <div class="rss-facts">
+            <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
+            <div class="start-info">${startLine}</div>
+          </div>
+          <button class="btn-inline rss-toggle" id="btn-toggle-map"
+            aria-expanded="${state.mapOpen}" aria-controls="rss-map">
+            Afficher sur la carte ${icon(state.mapOpen ? 'chevronUp' : 'chevronRight')}
+          </button>
+        </div>
+        ${state.mapOpen ? `
+          <div class="rss-map" id="rss-map">
+            <div id="map-slot"></div>
+            ${routeStatus === 'loading' ? '<p class="rss-note">Tracé approximatif — calcul de l\'itinéraire routier…</p>' : ''}
+            ${routeStatus === 'error' ? '<p class="rss-note">Tracé et distances approximatifs — service de routage indisponible.</p>' : ''}
+            <button class="btn-inline rss-full" id="btn-map-fullscreen">Ouvrir la carte en plein écran</button>
+          </div>` : ''}
+      </section>`;
   })();
 
   const stopsHtml = draft.stops.length === 0 ? `
@@ -1985,8 +2014,6 @@ function renderBuilderScreen() {
   // étape à franchir, pas un refus.
   const optiWhy = whenBlocked('btn-optimize', propertyCount >= 2,
     'Ajoutez au moins deux propriétés : l\'optimisation compare des trajets entre elles.');
-  const carteWhy = whenBlocked('btn-show-map', draft.stops.length > 0,
-    'Ajoutez au moins une destination pour la voir sur la carte.');
 
   const panelStatuses = ['en_cours', 'confirme', 'non_envoye', 'partage'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
@@ -2051,10 +2078,9 @@ function renderBuilderScreen() {
     <div class="action-row">
       <button class="btn btn-outline" id="btn-add-destination">${icon('plus')} Ajouter une destination</button>
       <button class="btn btn-outline" id="btn-optimize"${optiWhy.a}>Optimiser le tour</button>${optiWhy.n}
-      <button class="btn btn-outline" id="btn-show-map"${carteWhy.a}>Afficher sur la carte</button>${carteWhy.n}
     </div>
 
-    ${departureHtml}
+    ${summaryHtml}
     <div>${stopsHtml}</div>
 
 
@@ -2953,7 +2979,7 @@ function renderMapScreen() {
   const mapStart = originPoint(draft.origin);
 
   return `
-    <div id="leaflet-map" class="tour-map"></div>
+    <div id="map-slot"></div>
     ${canOptimize ? `
       <div class="route-summary">
         <span class="route-summary-item"><strong>${totals.count}</strong> arrêts</span>
@@ -3163,10 +3189,6 @@ function showToast(msg, type = 'default') {
 /* ---------------- Events ---------------- */
 
 function bindEvents() {
-  // Leaving the map screen: dispose Leaflet so it doesn't leak a live instance
-  // bound to a DOM node that render() has already thrown away.
-  if (state.screen !== 'map') destroyTourMap();
-
   // Sidebar nav + mobile menu grid (only "tours" is wired; others show a toast)
   document.querySelectorAll('[data-nav]').forEach(el => {
     el.onclick = (e) => {
@@ -3460,8 +3482,14 @@ function bindBuilderEvents() {
   const optimizeBtn = document.getElementById('btn-optimize');
   if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
 
-  const mapBtn = document.getElementById('btn-show-map');
-  if (mapBtn) mapBtn.onclick = () => { state.screen = 'map'; render(); };
+  const toggleMap = document.getElementById('btn-toggle-map');
+  if (toggleMap) toggleMap.onclick = () => { state.mapOpen = !state.mapOpen; render(); };
+
+  // L'écran carte reste joignable : il porte la liste réordonnable en pleine
+  // largeur, ce que le panneau ne remplace pas. Sans cette porte il deviendrait
+  // du code mort, son seul accès ayant disparu de la rangée d'actions.
+  const fullMap = document.getElementById('btn-map-fullscreen');
+  if (fullMap) fullMap.onclick = () => { state.screen = 'map'; render(); };
 
   // Editing a property stop's own pencil reopens the "Demande de visite" form
   // pre-filled, so the requested time and message can be adjusted.
@@ -3719,6 +3747,50 @@ function bindBuilderEvents() {
    reorder; changing the set of stops refits the bounds instead. */
 const tourMap = { instance: null, center: null, zoom: null, sig: null };
 
+/* ----- Hôte persistant de la carte -----
+   render() remplace tout #main-content par innerHTML. Une instance Leaflet posée
+   dedans serait donc détruite et reconstruite à chaque rendu — or le builder se
+   rerend à chaque caractère tapé dans la recherche de destination. Reconstruire
+   la carte et rejouer le routage à cette cadence dépasse largement les 400 ms au
+   bout desquelles une interface cesse de paraître immédiate.
+
+   Le conteneur vit donc dans une variable, hors du document entre deux rendus, et
+   se replace dans son emplacement après coup : déplacer un nœud ne détruit pas la
+   carte, il suffit de lui redonner ses dimensions. */
+let mapHostEl = null;
+function mapHost() {
+  if (!mapHostEl) {
+    mapHostEl = document.createElement('div');
+    mapHostEl.id = 'leaflet-map';
+    mapHostEl.className = 'tour-map';
+  }
+  return mapHostEl;
+}
+
+// Le trajet tracé : les propriétés dans l'ordre, précédées du point de départ.
+// Deux tours qui partagent cette signature partagent le même tracé et le même
+// cadrage — inutile de reconstruire.
+function tourMapSignature() {
+  const props = state.draft ? state.draft.stops.filter(s => s.type === 'property') : [];
+  const start = state.draft ? originPoint(state.draft.origin) : null;
+  return (start ? 'o:' + coordKey(coordsFor(start)) + '|' : '')
+    + props.map(s => s.id).join(',');
+}
+
+// Appelé après chaque rendu : replace la carte dans l'emplacement du moment, la
+// construit si elle n'existe pas, et ne la refait que si le trajet a changé.
+function syncTourMap() {
+  const slot = document.getElementById('map-slot');
+  if (!slot) { destroyTourMap(); return; }
+  const host = mapHost();
+  if (host.parentNode !== slot) slot.appendChild(host);
+  if (!tourMap.instance) { buildTourMap(); return; }
+  if (tourMap.sig !== tourMapSignature()) { destroyTourMap(); buildTourMap(); return; }
+  // Le nœud vient d'être rattaché : sans ça Leaflet garde les dimensions qu'il
+  // avait au moment du détachement, c'est-à-dire zéro.
+  tourMap.instance.invalidateSize();
+}
+
 // Each leg gets its own colour, running green → blue → navy so the direction of
 // the tour reads at a glance. Leaflet draws no arrowheads without a plugin, and
 // the progression does that job while staying inside the brand palette.
@@ -3793,11 +3865,10 @@ function buildTourMap() {
   if (!el || typeof L === 'undefined') return;
 
   const props = state.draft.stops.filter(s => s.type === 'property');
+  const start = originPoint(state.draft.origin);
   // Le départ entre dans la signature : changer de point change le cadrage, donc
   // la vue mémorisée ne vaut plus.
-  const start = originPoint(state.draft.origin);
-  const sig = (start ? 'o:' + coordKey(coordsFor(start)) + '|' : '')
-    + props.map(s => s.id).slice().sort().join(',');
+  const sig = tourMapSignature();
   const sameSet = tourMap.sig === sig && tourMap.center && tourMap.zoom != null;
 
   const map = L.map(el, { scrollWheelZoom: false });
@@ -3927,9 +3998,6 @@ function buildTourMap() {
 function bindMapEvents() {
   const optimizeBtn = document.getElementById('btn-optimize-map');
   if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
-
-  destroyTourMap();
-  buildTourMap();
 
   bindDragAndDrop();
 }

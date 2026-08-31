@@ -1236,6 +1236,56 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 }
 .route-summary-note svg { width: 14px; height: 14px; flex-shrink: 0; font-style: normal; }
 
+/* ----- Panneau de synthèse du trajet — Figma 5551:2871 (replié) / 5551:2174 -----
+   Le trajet se lit là où il se compose. Le panneau tient les chiffres, le point
+   de départ, et le dépliage de la carte.
+
+   La maquette pose ses gris en slate de Tailwind — #1e293b, #64748b, #475569 —
+   là où le projet a déjà --texte-principal et --texte-secondaire. On garde les
+   jetons du projet : trois familles de gris dans une même feuille finiraient par
+   se contredire, et l'écart perçu est nul. */
+.route-summary-section {
+  border: 1px solid var(--bordures);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 10px;
+}
+.rss-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.rss-facts { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+.stats-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.stat-item { font-size: 15px; color: var(--texte-secondaire); white-space: nowrap; }
+.stat-item strong { font-size: 18px; font-weight: 700; color: var(--texte-principal); margin-right: 6px; }
+/* Puce et non barre verticale : la maquette sépare des mesures de même rang, pas
+   des sections. Elle disparaît quand la rangée passe à la ligne. */
+.stat-sep { width: 4px; height: 4px; border-radius: 50%; background: #C5CBE0; flex-shrink: 0; }
+
+.start-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Pastille en ligne dans le texte et non frère de flex : sinon elle se retrouve
+   seule sur sa ligne dès que l'adresse passe à la ligne. */
+.start-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--succes); margin-right: 8px; vertical-align: middle;
+}
+.start-dot.is-none { background: #A9B2C8; }
+.start-text { font-size: 14px; color: var(--texte-secondaire); }
+.start-text strong { font-weight: 600; color: var(--texte-principal); }
+.start-text .dot { margin: 0 5px; }
+/* Flex et non simple bouton : la règle globale `svg { display: block }` mettrait
+   le chevron à la ligne, sous le libellé. */
+.rss-toggle {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+  flex-shrink: 0; align-self: flex-start; white-space: nowrap;
+  color: var(--bleu-principal); font-size: 15px;
+}
+.rss-toggle svg { width: 14px; height: 14px; }
+
+.rss-map { display: flex; flex-direction: column; gap: 8px; }
+.rss-map #map-slot { display: block; }
+.rss-note { margin: 0; font-size: 12.5px; font-style: italic; color: var(--texte-secondaire); }
+.rss-full { align-self: flex-start; }
+
 /* ---------- Misc ---------- */
 
 .helper-text { font-size: 13px; color: var(--texte-secondaire); margin: -10px 0 18px; }
@@ -1401,6 +1451,14 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 
   /* List screen */
   .tabs-toggle { margin-bottom: 16px; }
+
+  /* Entête (~250 px) plus carte à 380 laisseraient la liste des arrêts sous la
+     ligne de flottaison sur un écran de 860 px. On raccourcit la carte : elle
+     situe le trajet, elle n'a pas à le détailler au doigt — le plein écran est
+     là pour ça. */
+  .tour-map { height: 240px; }
+  .rss-head { flex-direction: column; }
+  .rss-toggle { align-self: stretch; justify-content: space-between; min-height: 44px; }
   .search-bar { margin-bottom: 16px; }
   .tour-card-name, .tour-card-meta { font-size: 15px; }
   /* À 430 px la colonne fait 398 px : un champ utilisable en réclame ~220 et le
