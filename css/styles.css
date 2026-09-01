@@ -191,7 +191,9 @@ a { color: inherit; text-decoration: none; }
    est la racine, s'en passe. */
 body[data-screen="contact"] .topbar-back,
 body[data-screen="builder"] .topbar-back,
-body[data-screen="report"] .topbar-back { display: inline-flex; }
+body[data-screen="report"] .topbar-back,
+body[data-screen="propertyDetail"] .topbar-back,
+body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
 .topbar-back:hover { color: var(--bleu-secondaire); }
 .topbar-back:focus-visible { outline: var(--focus-ring); outline-offset: 3px; border-radius: var(--radius-sm); }
 
@@ -1331,6 +1333,177 @@ body[data-screen="report"] .topbar-back { display: inline-flex; }
 }
 .list-toolbar .search-bar { flex: 1; min-width: 0; margin-bottom: 0; }
 .list-toolbar .btn { flex-shrink: 0; }
+
+/* ---------- Mes propriétés (Figma 1655:6091) ---------- */
+
+/* Onglets propres à cet écran : l'aplat actif y est le bleu principal (marine),
+   pas le bleu d'action de `.tabs-toggle` — une variante de couleur qui ne
+   justifie pas de dupliquer la structure, seulement les teintes. */
+.property-tabs { display: flex; height: 42px; margin: 20px 0 24px; border-radius: var(--radius-xl); overflow: hidden; border: 1px solid var(--bordures); }
+.property-tabs button {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px; border: none; background: var(--blanc); color: var(--bleu-principal);
+  font-size: 14px; font-weight: 400; cursor: pointer;
+}
+.property-tabs button + button { border-left: 1px solid var(--bordures); }
+.property-tabs button.active { background: var(--bleu-principal); color: var(--blanc); border-left-color: var(--bleu-principal); }
+
+.property-list { border-top: 1px solid var(--bordures); }
+.property-row {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 66px; padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--bordures);
+  cursor: pointer; background: var(--blanc);
+  transition: background 0.15s ease;
+}
+.property-row:hover { background: var(--lumiere-principale); }
+.property-row-thumb { width: 77px; height: 50px; border-radius: var(--radius-lg); object-fit: cover; flex-shrink: 0; }
+.property-row-address { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--bleu-principal); }
+.property-row-chevron { color: var(--bleu-principal); flex-shrink: 0; display: flex; align-items: center; }
+.property-row-chevron svg, .property-row-chevron img { width: 9px; height: 15px; }
+
+/* ---------- Fiche propriété (Figma 1655:6163) ---------- */
+
+.property-detail-photo { display: block; width: 200px; height: 113px; object-fit: cover; border-radius: var(--radius-lg); margin-bottom: 16px; }
+.property-detail-address { font-size: 15px; font-weight: 700; color: var(--bleu-principal); margin: 0 0 20px; }
+
+.property-detail-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-xl);
+  padding: 10px; margin-bottom: 12px;
+  font-size: 14px; font-weight: 700; color: #1A2740;
+}
+
+/* Interrupteur à bascule : pas encore de variante dans le système de boutons,
+   introduit ici pour l'état « Active » d'une propriété. */
+.switch {
+  position: relative; width: 40px; height: 20px; flex-shrink: 0;
+  border: none; padding: 0; border-radius: 999px; background: var(--bordures); cursor: pointer;
+  transition: background 0.15s ease;
+}
+.switch-thumb {
+  position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 999px;
+  background: var(--blanc); box-shadow: var(--shadow-sm);
+  display: flex; align-items: center; justify-content: center; color: var(--bleu-principal);
+  transition: transform 0.15s ease;
+}
+.switch-thumb svg { width: 11px; height: 11px; }
+.switch.on { background: var(--bleu-principal); }
+.switch.on .switch-thumb { transform: translateX(20px); }
+
+.property-detail-menu { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.property-detail-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  height: 40px; padding: 0 10px;
+  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-xl);
+  font-size: 14px; font-weight: 700; color: var(--bleu-principal);
+  font-family: inherit; cursor: pointer; width: 100%; text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.property-detail-row:hover { background: var(--lumiere-principale); border-color: #99C2F2; }
+.property-detail-row img { flex-shrink: 0; }
+
+/* ---------- Disponibilités pour visites (Property-Management-Showingavailability, reskinné) ---------- */
+
+.icon-flip { transform: rotate(180deg); display: inline-block; }
+.field-error { font-size: 12.5px; color: var(--rouge-principal); margin: 6px 0 0; }
+
+.avail-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.avail-nav { display: flex; align-items: center; gap: 8px; }
+.avail-nav-btn {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius-lg); border: 1px solid var(--bordures);
+  background: var(--blanc); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--bleu-principal);
+}
+.avail-nav-btn:hover { background: var(--lumiere-principale); }
+.avail-nav-btn svg { width: 16px; height: 16px; }
+.avail-today-btn { background: var(--succes); border-radius: 999px; padding: 8px 22px; }
+.avail-today-btn:hover { background: #1f8a3d; }
+
+.avail-date-picker { position: relative; }
+.avail-date-btn {
+  display: flex; align-items: center; gap: 8px; border: 1px solid var(--bordures); background: var(--blanc);
+  border-radius: var(--radius-lg); padding: 8px 14px; font-weight: 700; color: var(--texte-principal); cursor: pointer;
+}
+.avail-date-btn:hover { background: var(--lumiere-principale); }
+.avail-date-btn svg { width: 16px; height: 16px; color: var(--bleu-principal); }
+
+.avail-minical {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 260px;
+  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md); padding: 12px;
+}
+.avail-minical-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; margin-bottom: 8px; }
+.avail-minical-nav { background: none; border: none; cursor: pointer; color: var(--bleu-principal); width: 24px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.avail-minical-nav svg { width: 14px; height: 14px; }
+.avail-minical-dow, .avail-minical-grid { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+.avail-minical-dow span { font-size: 11px; color: var(--texte-secondaire); padding: 4px 0; }
+.avail-minical-cell { border: none; background: none; padding: 6px 0; font-size: 13px; border-radius: 999px; cursor: pointer; color: var(--texte-principal); }
+.avail-minical-cell:hover { background: var(--lumiere-principale); }
+.avail-minical-cell.is-today { font-weight: 700; color: var(--bleu-principal); }
+.avail-minical-cell.is-selected { background: var(--bleu-principal); color: var(--blanc); }
+.avail-minical-cell.is-empty { cursor: default; }
+
+.avail-view-toggle { display: flex; border: 1px solid var(--bordures); border-radius: var(--radius-xl); overflow: hidden; }
+.avail-view-toggle button { padding: 8px 18px; border: none; background: var(--blanc); color: var(--bleu-principal); font-weight: 500; cursor: pointer; }
+.avail-view-toggle button + button { border-left: 1px solid var(--bordures); }
+.avail-view-toggle button.active { background: var(--bleu-principal); color: var(--blanc); }
+
+/* En-tête et grille partagent un seul conteneur défilant : deux conteneurs
+   indépendants (chacun avec sa propre largeur naturelle) désynchronisaient
+   leurs colonnes dès que la grille dépassait le viewport, l'en-tête restant
+   étroit pendant que la grille s'étirait — les jours ne tombaient plus
+   au-dessus des bonnes colonnes. Empilés dans le même défilement, ils gardent
+   toujours la même largeur et roulent ensemble. */
+.avail-grid-scroll { overflow-x: auto; border: 1px solid var(--bordures); border-radius: var(--radius-lg); }
+.avail-header-row { display: grid; min-width: 640px; background: var(--blanc); border-bottom: 1px solid var(--bordures); }
+.avail-day-header { text-align: center; padding: 8px 4px; font-size: 12.5px; color: var(--texte-secondaire); border-left: 1px solid var(--bordures); }
+.avail-day-header.is-today { background: var(--lumiere-principale); }
+.avail-day-name { display: block; }
+.avail-day-num { display: block; font-size: 15px; font-weight: 700; color: var(--bleu-principal); }
+
+.avail-grid { display: grid; min-width: 640px; }
+.avail-time-col { position: relative; height: 900px; }
+.avail-hour-label { position: absolute; right: 8px; transform: translateY(-8px); font-size: 12px; color: var(--texte-secondaire); }
+.avail-day-col {
+  position: relative; height: 900px; border-left: 1px solid var(--bordures); cursor: pointer;
+  background-image: repeating-linear-gradient(to bottom, var(--bordures) 0, var(--bordures) 1px, transparent 1px, transparent 60px);
+}
+.avail-day-col.is-today { background-color: var(--lumiere-principale); }
+.avail-day-col.is-past { cursor: default; opacity: 0.55; }
+
+.avail-now-line { position: absolute; left: 0; right: 0; border-top: 2px solid var(--bleu-secondaire); z-index: 5; pointer-events: none; }
+.avail-now-line::before { content: ''; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--bleu-secondaire); }
+
+.avail-event {
+  position: absolute; left: 4px; right: 4px; border-radius: var(--radius-sm);
+  border-left: 3px solid var(--avail-color); background: var(--avail-bg);
+  overflow: hidden; z-index: 2; padding: 4px 6px; box-sizing: border-box; cursor: grab;
+}
+.avail-event.is-invalid { background: var(--rouge-10); border-left-color: var(--rouge-principal); }
+.avail-event-ghost { background: var(--bleu-action-10); border-left: 3px solid var(--bleu-secondaire); pointer-events: none; }
+.avail-event-type { display: block; font-size: 12px; font-weight: 700; color: var(--avail-color); }
+.avail-event-time { display: block; font-size: 11px; color: var(--texte-secondaire); }
+.avail-event-handle { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; }
+
+.avail-hint { font-size: 12.5px; color: var(--texte-secondaire); margin: 10px 2px 0; }
+
+/* Puces du modal « Disponibilité de la propriété » */
+.avail-type-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.avail-type-pill {
+  display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--bordures); border-radius: 999px;
+  padding: 8px 14px; background: var(--blanc); font-size: 13.5px; font-weight: 600; color: var(--texte-principal); cursor: pointer;
+}
+.avail-type-pill .option-radio { border-color: var(--avail-color); }
+.avail-type-pill.selected { border-color: var(--avail-color); background: color-mix(in srgb, var(--avail-color) 10%, white); color: var(--avail-color); }
+.avail-type-pill.selected .option-radio::after { content: ''; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--avail-color); }
+
+.avail-day-pills, .avail-recur-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.avail-day-pill, .avail-recur-pill {
+  border: 1.5px solid var(--bordures); border-radius: 999px; padding: 7px 14px; background: var(--blanc);
+  font-size: 13px; font-weight: 600; color: var(--texte-principal); cursor: pointer;
+}
+.avail-day-pill.active, .avail-recur-pill.active { border-color: var(--bleu-principal); background: var(--bleu-principal); color: var(--blanc); }
 
 /* ---------- Mobile chrome (hidden on desktop) ---------- */
 
