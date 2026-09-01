@@ -9,6 +9,7 @@ const ICONS = {
   send: `<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   hourglass: `<path d="M6 2h12M6 22h12M6 2v5a6 6 0 0012 0V2M6 22v-5a6 6 0 0112-0v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   doc: `<path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/><path d="M9 12h6M9 16h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
+  calendar: `<rect x="3" y="4.5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>`,
   info: `<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
   search: `<circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
   plus: `<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
@@ -130,6 +131,29 @@ function todayPlus(days) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Mêmes règles que `todayPlus`, mais depuis une date de référence arbitraire —
+// nécessaire pour naviguer le calendrier de disponibilité semaine par semaine
+// sans repartir d'aujourd'hui à chaque pas.
+function isoDate(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function addDaysISO(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+// Semaine calée sur dimanche, comme la maquette (Dim, Lun, Mar...).
+function weekStartISO(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  return isoDate(d);
+}
+function minutesToHHMM(mins) {
+  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+}
+function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
 /* ---------------- Mock data ---------------- */
 
 const THUMB_IMAGES = ['assets/house1.png', 'assets/house2.png', 'assets/house3.png', 'assets/house4.png'];
@@ -207,6 +231,87 @@ const MLS_POOL = [
   { mls: '18235589', address: '210 Boulevard Saint-Martin, Laval, QC H7M 1Y8', lat: 45.5750, lng: -73.7100 },
   { mls: '18235634', address: '44 Rue du Parc, Brossard, QC J4W 2K3', lat: 45.4510, lng: -73.4650 },
 ];
+
+/* ---------------- Disponibilités pour visites ---------------- */
+// Modèle repris de Property-Management-Showingavailability : un événement à
+// plat par créneau (pas de règle récurrente persistée) — la récurrence n'est
+// qu'un générateur au moment d'enregistrer, qui pose une occurrence indépendante
+// par date résolue. { id, type, date: 'YYYY-MM-DD', startMinutes, endMinutes }
+
+const AVAIL_HOUR_START = 7;
+const AVAIL_HOUR_END = 22;
+
+const AVAIL_TYPES = [
+  { id: 'visite-libre', label: 'Visite libre', color: '#1F9D55', bg: '#E8F5E9' },
+  { id: 'pre-approuve', label: 'Pré-approuvé', color: '#0066DC', bg: '#EAF3FB' },
+  { id: 'impossible', label: 'Impossible', color: '#C8102E', bg: '#FAE8EB' },
+];
+function availTypeMeta(id) { return AVAIL_TYPES.find(t => t.id === id) || AVAIL_TYPES[0]; }
+
+// Lun→Dim pour les puces à cocher du modal (comme la maquette) ; Dim→Sam pour
+// l'en-tête de semaine, qui commence un dimanche. Les deux pointent vers le
+// même index `Date#getDay()`.
+const MODAL_DAY_ORDER = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAY_LABEL_TO_DOW = { Lun: 1, Mar: 2, Mer: 3, Jeu: 4, Ven: 5, Sam: 6, Dim: 0 };
+const WEEKDAY_SHORT_SUN_FIRST = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+
+function dowLabelFor(dateIso) {
+  return MODAL_DAY_ORDER.find(l => DAY_LABEL_TO_DOW[l] === new Date(dateIso + 'T00:00:00').getDay());
+}
+
+function rangesOverlap(a, b) { return a.startMinutes < b.endMinutes && b.startMinutes < a.endMinutes; }
+
+// Semaine ou mois, 12 occurrences plafond — mêmes bornes que la source. Une
+// date ne peut apparaître qu'une fois même si deux jours cochés y menaient.
+const AVAIL_RECURRENCE_CYCLES = { semaine: 12, mois: 12 };
+function generateAvailDates(weekStartIso, dayLabels, recurrence) {
+  const cycles = recurrence ? AVAIL_RECURRENCE_CYCLES[recurrence] : 1;
+  const out = new Set();
+  dayLabels.forEach(label => {
+    const occurrence0 = addDaysISO(weekStartIso, DAY_LABEL_TO_DOW[label]);
+    for (let c = 0; c < cycles; c++) {
+      let d = occurrence0;
+      if (recurrence === 'semaine') d = addDaysISO(occurrence0, c * 7);
+      else if (recurrence === 'mois') {
+        const dt = new Date(occurrence0 + 'T00:00:00');
+        const day = dt.getDate();
+        dt.setMonth(dt.getMonth() + c);
+        if (dt.getDate() !== day) dt.setDate(0); // débordement de mois (ex. 31 → 30 jours)
+        d = isoDate(dt);
+      }
+      out.add(d);
+    }
+  });
+  return [...out];
+}
+
+// Un jeu de départ dérivé du numéro MLS : chaque fiche a déjà de quoi montrer
+// l'écran sans dépendre d'un fichier de données séparé à maintenir, et sans
+// que toutes les propriétés se ressemblent.
+const PROPERTY_AVAILABILITY = {};
+function seedAvailability(mls) {
+  const h = hashStr(mls);
+  const base = weekStartISO(todayPlus(0));
+  const patterns = [
+    { offset: 1, type: 'visite-libre', startH: 10, endH: 12 },
+    { offset: 2, type: 'pre-approuve', startH: 13, endH: 14.5 },
+    { offset: 4, type: 'visite-libre', startH: 9, endH: 10 },
+    { offset: 5, type: 'impossible', startH: 8, endH: 9.5 },
+  ];
+  return patterns
+    .filter((p, i) => ((h >> (i * 2)) & 3) !== 0)
+    .map((p, i) => ({
+      id: `${mls}-seed-${i}`,
+      type: p.type,
+      date: addDaysISO(base, p.offset),
+      startMinutes: p.startH * 60,
+      endMinutes: p.endH * 60,
+    }));
+}
+function propertyAvailability(mls) {
+  if (!PROPERTY_AVAILABILITY[mls]) PROPERTY_AVAILABILITY[mls] = seedAvailability(mls);
+  return PROPERTY_AVAILABILITY[mls];
+}
 
 // Sur ImmoContact, une adresse absente du catalogue reste visitable : le
 // courtier la saisit et la demande part par courriel. Ce jeu de rues simule ce
@@ -822,9 +927,15 @@ function flag(id) { return !!state.flags[id]; }
 
 const state = {
   flags: loadFlags(),
-  screen: 'list',           // list | contact | buyerForm | builder
+  screen: 'list',           // list | contact | buyerForm | builder | properties
   listTab: 'upcoming',      // upcoming | past
   listSearch: '',
+  propertiesTab: 'active',  // active | inactive — onglet courant de « Mes propriétés »
+  propertyDetailMls: null,  // fiche ouverte depuis « Mes propriétés »
+  availView: 'week',        // week | day — écran Disponibilités pour visites
+  availAnchor: null,        // date ISO affichée (jour, ou jour de la semaine affichée)
+  availMiniCalOpen: false,
+  availMiniCalMonth: null,  // 'YYYY-MM' du mini-calendrier ouvert
   tours: seedTours(),
   buyers: BUYERS.slice(),
   draft: null,              // tour being created/edited
@@ -1283,16 +1394,32 @@ const NAV_ITEMS = [
   { id: 'help', label: 'Aide', img: 'assets/menu/help.svg' },
 ];
 
+// Sections câblées dans ce prototype, au-delà du tour de visites. Une section
+// câblée n'affiche plus la réserve « absente de ce prototype », qu'elle soit
+// ou non l'écran courant.
+const WIRED_NAV = new Set(['tours', 'properties']);
+
+// Une seule section à la fois se dit « courante » : le tour de visites tant
+// qu'on y est (liste, composition, envoi...), Mes propriétés dès qu'on y entre.
+function navActiveId() {
+  const inProperties = state.screen === 'properties' || state.screen === 'propertyDetail' || state.screen === 'propertyAvailability';
+  return inProperties ? 'properties' : 'tours';
+}
+
+// Glyphe blanc dédié par section active, comme le veut la maquette Figma : le
+// reste des icônes n'a qu'une seule teinte, pensée pour le fond clair.
+const NAV_ACTIVE_ICONS = { tours: 'assets/menu/tour-white.svg', properties: 'assets/menu/properties-white.svg' };
+
 function renderSidebarNav() {
   const el = document.getElementById('sidebar-nav');
+  const activeId = navActiveId();
   el.innerHTML = NAV_ITEMS.map(item => {
-    const active = item.id === 'tours';
-    // Active "Tour de visites" uses the dedicated white glyph from the Figma sidebar.
-    const iconSrc = active ? 'assets/menu/tour-white.svg' : item.img;
+    const active = item.id === activeId;
+    const iconSrc = active ? (NAV_ACTIVE_ICONS[item.id] || item.img) : item.img;
     // Le décor de la plateforme reste, badges compris : c'est ce qui rend la
     // démo crédible. Mais un badge promet du contenu, et ces sections n'en ont
     // pas. La réserve se dit avant le clic, pas seulement dans le toast après.
-    const hors = !active ? ' — section absente de ce prototype' : '';
+    const hors = WIRED_NAV.has(item.id) ? '' : ' — section absente de ce prototype';
     return `
     <a href="#" class="nav-item ${active ? 'active' : ''}" data-nav="${item.id}"
       ${active ? 'aria-current="page"' : `title="${esc(item.label)}${hors}"`}
@@ -1343,6 +1470,7 @@ function setTopbarTitle(title) {
 function render() {
   const main = document.getElementById('main-content');
   renderBrand();
+  renderSidebarNav();
   // Un créneau partagé dépend de l'ordre de la liste : on le revalide ici, seul
   // point par lequel passe toute modification du tour.
   normalizeParallel(state.draft);
@@ -1353,6 +1481,9 @@ function render() {
   else if (state.screen === 'builder') { setTopbarTitle(builderTitle()); main.innerHTML = renderBuilderScreen(); }
   else if (state.screen === 'report') { setTopbarTitle('Compte rendu de visite'); main.innerHTML = renderReportScreen(); }
   else if (state.screen === 'menu') { setTopbarTitle('Menu'); main.innerHTML = renderMenuScreen(); }
+  else if (state.screen === 'properties') { setTopbarTitle('Mes propriétés'); main.innerHTML = renderPropertiesScreen(); }
+  else if (state.screen === 'propertyDetail') { setTopbarTitle(propertyDetailTitle()); main.innerHTML = renderPropertyDetailScreen(); }
+  else if (state.screen === 'propertyAvailability') { setTopbarTitle(propertyDetailTitle()); main.innerHTML = renderAvailabilityScreen(); }
   document.body.dataset.screen = state.screen;
   renderModal();
   bindEvents();
@@ -1364,20 +1495,462 @@ function render() {
 /* ----- Screen: mobile menu grid ----- */
 
 function renderMenuScreen() {
+  const activeId = navActiveId();
   return `
     <div class="menu-grid">
-      ${NAV_ITEMS.map(item => `
-        <a href="#" class="menu-card ${item.id === 'tours' ? 'is-current' : ''}" data-nav="${item.id}"
-          ${item.id === 'tours' ? 'aria-current="page"' : 'title="Section absente de ce prototype"'}
-          aria-label="${esc(item.label)}${item.badge ? `, ${item.badge} en attente` : ''}${item.id === 'tours' ? '' : ' — section absente de ce prototype'}">
+      ${NAV_ITEMS.map(item => {
+        const active = item.id === activeId;
+        const hors = WIRED_NAV.has(item.id) ? '' : ' — section absente de ce prototype';
+        return `
+        <a href="#" class="menu-card ${active ? 'is-current' : ''}" data-nav="${item.id}"
+          ${active ? 'aria-current="page"' : (WIRED_NAV.has(item.id) ? '' : 'title="Section absente de ce prototype"')}
+          aria-label="${esc(item.label)}${item.badge ? `, ${item.badge} en attente` : ''}${hors}">
           ${item.id === 'tours' ? '<span class="menu-card-clip"><span class="menu-ribbon">Nouveau</span></span>' : ''}
           ${item.badge ? `<span class="nav-badge menu-card-badge" aria-hidden="true">${item.badge}</span>` : ''}
           <span class="menu-card-icon"><img src="${item.img}" alt=""></span>
           <span class="menu-card-label">${esc(item.label)}</span>
-        </a>
-      `).join('')}
+        </a>`;
+      }).join('')}
     </div>
   `;
+}
+
+/* ----- Screen: properties ----- */
+
+// Le catalogue MLS porte déjà un drapeau `inactive` — pensé à l'origine pour
+// exclure une fiche retirée des destinations proposables dans un tour. Cette
+// même distinction est exactement celle des onglets Actives/Inactives de la
+// maquette : pas de second jeu de données à faire vivre en parallèle.
+function renderPropertiesScreen() {
+  const tab = state.propertiesTab;
+  const list = MLS_POOL.filter(p => (tab === 'inactive' ? p.inactive : !p.inactive));
+
+  const rows = list.length === 0
+    ? `<div class="empty-state"><p>${tab === 'inactive' ? 'Aucune propriété inactive.' : 'Aucune propriété active.'}</p></div>`
+    : `<div class="property-list">${list.map(p => `
+        <div class="property-row" data-open-property="${esc(p.mls)}">
+          <img class="property-row-thumb" src="${thumbFor(p.mls, p.address)}" alt="">
+          <span class="property-row-address">${esc(p.address)}</span>
+          <span class="property-row-chevron"><img src="assets/badge-chevron.svg" alt="" width="9" height="15"></span>
+        </div>`).join('')}</div>`;
+
+  return `
+    <button class="btn btn-primary btn-block" id="btn-add-property">${icon('plus')} Ajouter une nouvelle propriété</button>
+    <div class="property-tabs" role="tablist" aria-label="Filtrer mes propriétés">
+      <button class="${tab === 'active' ? 'active' : ''}" data-property-tab="active" role="tab" aria-selected="${tab === 'active'}">Actives</button>
+      <button class="${tab === 'inactive' ? 'active' : ''}" data-property-tab="inactive" role="tab" aria-selected="${tab === 'inactive'}">Inactives</button>
+    </div>
+    ${rows}
+  `;
+}
+
+function bindPropertiesEvents() {
+  document.querySelectorAll('[data-property-tab]').forEach(btn => {
+    btn.onclick = () => { state.propertiesTab = btn.getAttribute('data-property-tab'); render(); };
+  });
+  const addBtn = document.getElementById('btn-add-property');
+  if (addBtn) addBtn.onclick = () => showToast('L\'ajout d\'une propriété n\'est pas encore disponible dans ce prototype.');
+  document.querySelectorAll('[data-open-property]').forEach(row => {
+    row.onclick = () => {
+      state.propertyDetailMls = row.getAttribute('data-open-property');
+      state.screen = 'propertyDetail';
+      render();
+    };
+  });
+}
+
+/* ----- Screen: property detail ----- */
+
+// Chaque entrée mène à un sous-écran qui n'existe pas encore dans ce
+// prototype : la réserve se dit au clic, comme partout ailleurs, plutôt que
+// de laisser croire que la fiche est complète.
+const PROPERTY_DETAIL_ROWS = [
+  { id: 'visitParams', label: 'Paramètres pour les visites' },
+  { id: 'messageSplit', label: 'Répartition des messages' },
+  { id: 'notes', label: 'Notes de propriété' },
+  { id: 'reviews', label: 'Envoi d\'avis' },
+  { id: 'seller', label: 'Détails du vendeur' },
+  { id: 'availability', label: 'Disponibilités pour visites' },
+  { id: 'activities', label: 'Activités' },
+  { id: 'reports', label: 'Comptes rendus' },
+];
+
+function currentPropertyDetail() {
+  return MLS_POOL.find(p => p.mls === state.propertyDetailMls) || null;
+}
+
+function propertyDetailTitle() {
+  const p = currentPropertyDetail();
+  return p ? p.address : 'Propriété';
+}
+
+function renderPropertyDetailScreen() {
+  const p = currentPropertyDetail();
+  if (!p) return `<div class="empty-state"><p>Cette fiche n'existe plus.</p></div>`;
+  const active = !p.inactive;
+
+  return `
+    <img class="property-detail-photo" src="${thumbFor(p.mls, p.address)}" alt="">
+    <p class="property-detail-address">${esc(p.address)}</p>
+    <div class="property-detail-toggle-row">
+      <span>Active</span>
+      <button class="switch ${active ? 'on' : ''}" id="btn-toggle-property-active" role="switch" aria-checked="${active}" aria-label="Propriété active">
+        <span class="switch-thumb">${active ? icon('check') : ''}</span>
+      </button>
+    </div>
+    <div class="property-detail-menu">
+      ${PROPERTY_DETAIL_ROWS.map(row => `
+        <button class="property-detail-row" data-property-menu-item="${row.id}">
+          <span>${esc(row.label)}</span>
+          <img src="assets/badge-chevron.svg" alt="" width="9" height="15">
+        </button>`).join('')}
+    </div>
+    <button class="btn btn-danger-outline btn-block" id="btn-delete-property">Supprimer</button>
+  `;
+}
+
+function bindPropertyDetailEvents() {
+  const toggle = document.getElementById('btn-toggle-property-active');
+  if (toggle) toggle.onclick = () => {
+    const p = currentPropertyDetail();
+    if (!p) return;
+    p.inactive = !p.inactive;
+    render();
+  };
+  document.querySelectorAll('[data-property-menu-item]').forEach(row => {
+    row.onclick = () => {
+      const id = row.getAttribute('data-property-menu-item');
+      if (id === 'availability') {
+        state.availView = 'week';
+        state.availAnchor = todayPlus(0);
+        state.screen = 'propertyAvailability';
+        render();
+        return;
+      }
+      showToast('Cette section n\'est pas encore disponible dans ce prototype.');
+    };
+  });
+  const delBtn = document.getElementById('btn-delete-property');
+  if (delBtn) delBtn.onclick = () => showToast('La suppression d\'une propriété n\'est pas encore disponible dans ce prototype.');
+}
+
+/* ----- Screen: property availability (Property-Management-Showingavailability, reskinné) ----- */
+
+// 60 px l'heure : une minute vaut un pixel pile, ce qui évite tout calcul de
+// conversion entre `startMinutes`/`endMinutes` et la position du bloc.
+const AVAIL_ROW_HEIGHT = 60;
+const AVAIL_GRID_HEIGHT = (AVAIL_HOUR_END - AVAIL_HOUR_START) * AVAIL_ROW_HEIGHT;
+
+function formatAvailRangeLabel(days) {
+  if (days.length === 1) {
+    const d = new Date(days[0] + 'T00:00:00');
+    return `${d.getDate()} ${capFirst(MONTHS_FR[d.getMonth()])} ${d.getFullYear()}`;
+  }
+  const first = new Date(days[0] + 'T00:00:00');
+  const last = new Date(days[days.length - 1] + 'T00:00:00');
+  const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear();
+  const firstPart = sameMonth ? `${first.getDate()}` : `${first.getDate()} ${capFirst(MONTHS_FR[first.getMonth()])}`;
+  return `${firstPart} – ${last.getDate()} ${capFirst(MONTHS_FR[last.getMonth()])} ${last.getFullYear()}`;
+}
+
+function renderAvailEventCard(ev) {
+  const meta = availTypeMeta(ev.type);
+  const top = ev.startMinutes - AVAIL_HOUR_START * 60;
+  const height = Math.max(ev.endMinutes - ev.startMinutes, 20);
+  const showTime = height >= 34;
+  return `
+    <div class="avail-event" data-avail-event="${esc(ev.id)}"
+      style="top:${top}px;height:${height}px;--avail-color:${meta.color};--avail-bg:${meta.bg}">
+      <span class="avail-event-type">${esc(meta.label)}</span>
+      ${showTime ? `<span class="avail-event-time">${minutesToHHMM(ev.startMinutes)} – ${minutesToHHMM(ev.endMinutes)}</span>` : ''}
+      <span class="avail-event-handle" data-avail-resize="${esc(ev.id)}" aria-hidden="true"></span>
+    </div>`;
+}
+
+function renderAvailMiniCal() {
+  const month = state.availMiniCalMonth || state.availAnchor.slice(0, 7);
+  const [y, m] = month.split('-').map(Number);
+  const firstDow = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const today = todayPlus(0);
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push('<span class="avail-minical-cell is-empty"></span>');
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push(`<button class="avail-minical-cell${iso === today ? ' is-today' : ''}${iso === state.availAnchor ? ' is-selected' : ''}"
+      data-avail-pick-date="${iso}">${d}</button>`);
+  }
+  return `
+    <div class="avail-minical" role="dialog" aria-label="Choisir une date">
+      <div class="avail-minical-head">
+        <button class="avail-minical-nav" data-avail-minical-month="-1" aria-label="Mois précédent">${icon('chevronRight', 'icon-flip')}</button>
+        <span>${capFirst(MONTHS_FR[m - 1])} ${y}</span>
+        <button class="avail-minical-nav" data-avail-minical-month="1" aria-label="Mois suivant">${icon('chevronRight')}</button>
+      </div>
+      <div class="avail-minical-dow">${WEEKDAY_SHORT_SUN_FIRST.map(d => `<span>${d}</span>`).join('')}</div>
+      <div class="avail-minical-grid">${cells.join('')}</div>
+    </div>`;
+}
+
+function renderAvailabilityScreen() {
+  const p = currentPropertyDetail();
+  if (!p) return `<div class="empty-state"><p>Cette fiche n'existe plus.</p></div>`;
+  if (!state.availAnchor) state.availAnchor = todayPlus(0);
+
+  const days = state.availView === 'day'
+    ? [state.availAnchor]
+    : Array.from({ length: 7 }, (_, i) => addDaysISO(weekStartISO(state.availAnchor), i));
+  const events = propertyAvailability(p.mls);
+  const today = todayPlus(0);
+  const colTemplate = `56px repeat(${days.length}, 1fr)`;
+  // La largeur minimale ne vaut que pour la semaine : en vue Jour, une seule
+  // colonne n'a aucune raison de forcer un défilement horizontal sur mobile.
+  const gridMinWidth = state.availView === 'week' ? '640px' : '100%';
+
+  const headerCells = days.map(date => {
+    const d = new Date(date + 'T00:00:00');
+    return `
+      <div class="avail-day-header${date === today ? ' is-today' : ''}">
+        <span class="avail-day-name">${WEEKDAY_SHORT_SUN_FIRST[d.getDay()]}</span>
+        <span class="avail-day-num">${d.getDate()}</span>
+      </div>`;
+  }).join('');
+
+  const hourLabels = Array.from({ length: AVAIL_HOUR_END - AVAIL_HOUR_START }, (_, i) =>
+    `<span class="avail-hour-label" style="top:${i * AVAIL_ROW_HEIGHT}px">${AVAIL_HOUR_START + i}h</span>`).join('');
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const showNowLine = nowMinutes >= AVAIL_HOUR_START * 60 && nowMinutes <= AVAIL_HOUR_END * 60;
+
+  const dayCols = days.map(date => {
+    const isPast = date < today;
+    const cards = events.filter(e => e.date === date).map(renderAvailEventCard).join('');
+    const nowLine = (showNowLine && date === today)
+      ? `<div class="avail-now-line" style="top:${nowMinutes - AVAIL_HOUR_START * 60}px"></div>` : '';
+    return `<div class="avail-day-col${date === today ? ' is-today' : ''}${isPast ? ' is-past' : ''}" data-avail-date="${date}">${nowLine}${cards}</div>`;
+  }).join('');
+
+  return `
+    <div class="avail-toolbar">
+      <div class="avail-nav">
+        <button class="avail-nav-btn" id="avail-prev" aria-label="Période précédente">${icon('chevronRight', 'icon-flip')}</button>
+        <button class="btn avail-today-btn" id="avail-today">Aujourd'hui</button>
+        <button class="avail-nav-btn" id="avail-next" aria-label="Période suivante">${icon('chevronRight')}</button>
+      </div>
+      <div class="avail-date-picker">
+        <button class="avail-date-btn" id="avail-minical-btn" aria-haspopup="dialog" aria-expanded="${state.availMiniCalOpen}">
+          ${icon('calendar')}<span>${esc(formatAvailRangeLabel(days))}</span>
+        </button>
+        ${state.availMiniCalOpen ? renderAvailMiniCal() : ''}
+      </div>
+      <div class="avail-view-toggle" role="tablist" aria-label="Vue du calendrier">
+        <button class="${state.availView === 'day' ? 'active' : ''}" data-avail-view="day" role="tab" aria-selected="${state.availView === 'day'}">Jour</button>
+        <button class="${state.availView === 'week' ? 'active' : ''}" data-avail-view="week" role="tab" aria-selected="${state.availView === 'week'}">Semaine</button>
+      </div>
+    </div>
+    <div class="avail-grid-scroll">
+      <div class="avail-header-row" style="grid-template-columns:${colTemplate};min-width:${gridMinWidth}">
+        <div class="avail-header-spacer"></div>
+        ${headerCells}
+      </div>
+      <div class="avail-grid" style="grid-template-columns:${colTemplate};min-width:${gridMinWidth}">
+        <div class="avail-time-col">${hourLabels}</div>
+        ${dayCols}
+      </div>
+    </div>
+    <p class="avail-hint">Cliquez un créneau vide pour l'ajouter, ou glissez pour choisir sa durée. Glissez une carte pour la déplacer, sa base pour la raccourcir ou l'allonger.</p>
+  `;
+}
+
+/* --- Interactions : créer, déplacer, redimensionner --- */
+// Chaque geste suit le même squelette (mousedown → mousemove document → mouseup
+// document) : la position n'est jamais écrite dans `state` pendant le drag —
+// seul le DOM bouge — pour ne payer un re-rendu complet qu'une fois, à la
+// relâche. Un déplacement invalide (date passée, chevauchement) ne touche
+// jamais la donnée : `render()` recompose alors le DOM d'origine, ce qui suffit
+// à « annuler » le geste.
+
+function clampAvailMinutes(m) { return Math.max(AVAIL_HOUR_START * 60, Math.min(m, AVAIL_HOUR_END * 60)); }
+function snap15(m) { return Math.round(m / 15) * 15; }
+
+function openAvailCreateModal(date, startMinutes, endMinutes) {
+  state.modal = {
+    type: 'availability', mode: 'create', propertyMls: state.propertyDetailMls,
+    date, startMinutes, endMinutes,
+    selectedType: null, selectedDays: [dowLabelFor(date)], recurrence: null, error: null,
+  };
+  render();
+}
+function openAvailEditModal(eventId) {
+  const ev = propertyAvailability(state.propertyDetailMls).find(e => e.id === eventId);
+  if (!ev) return;
+  state.modal = {
+    type: 'availability', mode: 'edit', propertyMls: state.propertyDetailMls, eventId,
+    date: ev.date, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes,
+    selectedType: ev.type, error: null,
+  };
+  render();
+}
+
+function startAvailCreate(e, col) {
+  const date = col.getAttribute('data-avail-date');
+  if (date < todayPlus(0)) return; // rien à composer sur une date passée
+  const rect = col.getBoundingClientRect();
+  const clickMin = clampAvailMinutes(AVAIL_HOUR_START * 60 + snap15(e.clientY - rect.top));
+  const startX = e.clientX, startY = e.clientY;
+  let moved = false, ghost = null, start = clickMin, end = Math.min(clickMin + 60, AVAIL_HOUR_END * 60);
+
+  const paint = () => {
+    if (!ghost) { ghost = document.createElement('div'); ghost.className = 'avail-event avail-event-ghost'; col.appendChild(ghost); }
+    ghost.style.top = (start - AVAIL_HOUR_START * 60) + 'px';
+    ghost.style.height = Math.max(end - start, 20) + 'px';
+  };
+  const onMove = (me) => {
+    if (!moved && Math.hypot(me.clientX - startX, me.clientY - startY) < 6) return;
+    moved = true;
+    const curMin = clampAvailMinutes(AVAIL_HOUR_START * 60 + snap15(me.clientY - rect.top));
+    start = Math.min(clickMin, curMin);
+    end = Math.max(clickMin, curMin, start + 15);
+    paint();
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (ghost) ghost.remove();
+    openAvailCreateModal(date, start, end);
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startAvailMove(e, eventId) {
+  e.preventDefault();
+  const list = propertyAvailability(state.propertyDetailMls);
+  const ev = list.find(x => x.id === eventId);
+  if (!ev) return;
+  const cardEl = document.querySelector(`.avail-event[data-avail-event="${CSS.escape(eventId)}"]`);
+  const startCol = cardEl.closest('.avail-day-col');
+  const duration = ev.endMinutes - ev.startMinutes;
+  const grabOffsetY = e.clientY - (startCol.getBoundingClientRect().top + (ev.startMinutes - AVAIL_HOUR_START * 60));
+  const startX = e.clientX, startY = e.clientY;
+  const today = todayPlus(0);
+  let moved = false;
+  const candidate = { date: ev.date, startMinutes: ev.startMinutes, endMinutes: ev.endMinutes, valid: true };
+
+  const onMove = (me) => {
+    if (!moved && Math.hypot(me.clientX - startX, me.clientY - startY) < 6) return;
+    moved = true;
+    const overCol = document.elementFromPoint(me.clientX, me.clientY)?.closest('.avail-day-col') || startCol;
+    const rect = overCol.getBoundingClientRect();
+    let startMin = clampAvailMinutes(AVAIL_HOUR_START * 60 + snap15((me.clientY - grabOffsetY) - rect.top));
+    startMin = Math.min(startMin, AVAIL_HOUR_END * 60 - duration);
+    candidate.date = overCol.getAttribute('data-avail-date');
+    candidate.startMinutes = startMin;
+    candidate.endMinutes = startMin + duration;
+    candidate.valid = candidate.date >= today && !list.some(o => o.id !== eventId && o.date === candidate.date && rangesOverlap(o, candidate));
+    if (cardEl.parentElement !== overCol) overCol.appendChild(cardEl);
+    cardEl.style.top = (startMin - AVAIL_HOUR_START * 60) + 'px';
+    cardEl.classList.toggle('is-invalid', !candidate.valid);
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!moved) { openAvailEditModal(eventId); return; }
+    if (candidate.valid) { ev.date = candidate.date; ev.startMinutes = candidate.startMinutes; ev.endMinutes = candidate.endMinutes; }
+    render();
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startAvailResize(e, eventId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const list = propertyAvailability(state.propertyDetailMls);
+  const ev = list.find(x => x.id === eventId);
+  if (!ev) return;
+  const cardEl = document.querySelector(`.avail-event[data-avail-event="${CSS.escape(eventId)}"]`);
+  const col = cardEl.closest('.avail-day-col');
+  const rect = col.getBoundingClientRect();
+  const ceiling = Math.min(AVAIL_HOUR_END * 60, ...list.filter(o => o.id !== eventId && o.date === ev.date && o.startMinutes >= ev.startMinutes).map(o => o.startMinutes));
+  let moved = false, candidateEnd = ev.endMinutes, valid = true;
+
+  const onMove = (me) => {
+    if (!moved && Math.abs(me.clientY - (rect.top + (ev.endMinutes - AVAIL_HOUR_START * 60))) < 4) return;
+    moved = true;
+    let end = AVAIL_HOUR_START * 60 + snap15(me.clientY - rect.top);
+    end = Math.max(ev.startMinutes + 15, Math.min(end, ceiling));
+    candidateEnd = end;
+    valid = end > ev.startMinutes;
+    cardEl.style.height = Math.max(end - ev.startMinutes, 20) + 'px';
+  };
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (moved && valid) ev.endMinutes = candidateEnd;
+    render();
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function onAvailGridMouseDown(e) {
+  if (e.button !== 0) return;
+  const resizeHandle = e.target.closest('[data-avail-resize]');
+  if (resizeHandle) return startAvailResize(e, resizeHandle.getAttribute('data-avail-resize'));
+  const card = e.target.closest('.avail-event');
+  if (card) return startAvailMove(e, card.getAttribute('data-avail-event'));
+  const col = e.target.closest('.avail-day-col');
+  if (col) return startAvailCreate(e, col);
+}
+
+function closeMiniCalOnClickOutside(e) {
+  if (!state.availMiniCalOpen) return;
+  if (e.target.closest('.avail-date-picker')) return;
+  state.availMiniCalOpen = false;
+  render();
+}
+
+function bindAvailabilityEvents() {
+  document.querySelectorAll('[data-avail-view]').forEach(btn => {
+    btn.onclick = () => { state.availView = btn.getAttribute('data-avail-view'); state.availMiniCalOpen = false; render(); };
+  });
+  const step = () => state.availView === 'day' ? 1 : 7;
+  const prevBtn = document.getElementById('avail-prev');
+  const nextBtn = document.getElementById('avail-next');
+  const todayBtn = document.getElementById('avail-today');
+  if (prevBtn) prevBtn.onclick = () => { state.availAnchor = addDaysISO(state.availAnchor, -step()); render(); };
+  if (nextBtn) nextBtn.onclick = () => { state.availAnchor = addDaysISO(state.availAnchor, step()); render(); };
+  if (todayBtn) todayBtn.onclick = () => { state.availAnchor = todayPlus(0); render(); };
+
+  const miniCalBtn = document.getElementById('avail-minical-btn');
+  if (miniCalBtn) miniCalBtn.onclick = () => {
+    state.availMiniCalOpen = !state.availMiniCalOpen;
+    if (state.availMiniCalOpen) state.availMiniCalMonth = state.availAnchor.slice(0, 7);
+    render();
+  };
+  document.querySelectorAll('[data-avail-minical-month]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const [y, m] = state.availMiniCalMonth.split('-').map(Number);
+      const d = new Date(y, m - 1 + (+btn.getAttribute('data-avail-minical-month')), 1);
+      state.availMiniCalMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      render();
+    };
+  });
+  document.querySelectorAll('[data-avail-pick-date]').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      state.availAnchor = btn.getAttribute('data-avail-pick-date');
+      state.availMiniCalOpen = false;
+      render();
+    };
+  });
+  document.addEventListener('click', closeMiniCalOnClickOutside);
+
+  const grid = document.querySelector('.avail-grid');
+  if (grid) grid.addEventListener('mousedown', onAvailGridMouseDown);
 }
 
 /* ----- Screen: list ----- */
@@ -2194,6 +2767,7 @@ function renderModal() {
   if (state.modal.type === 'editBuyer') { root.innerHTML = renderEditBuyerModal(); return; }
   if (state.modal.type === 'editStop') { root.innerHTML = renderEditStopModal(); return; }
   if (state.modal.type === 'origin') { root.innerHTML = renderOriginModal(); return; }
+  if (state.modal.type === 'availability') { root.innerHTML = renderAvailabilityModal(); return; }
   root.innerHTML = '';
 }
 
@@ -2249,6 +2823,134 @@ function renderOriginModal() {
         </div>${why.n}
       </div>
     </div>`;
+}
+
+// Le modal d'édition ne remontre pas Jours/Récurrence : on modifie l'occurrence
+// cliquée, pas la règle qui l'a produite — celle-ci n'a jamais existé en tant
+// que telle, la récurrence n'étant qu'un générateur au moment de la création.
+function renderAvailabilityModal() {
+  const m = state.modal;
+  const isEdit = m.mode === 'edit';
+  const canSave = !!m.selectedType && (isEdit || m.selectedDays.length > 0);
+
+  const typePills = AVAIL_TYPES.map(t => `
+    <button class="avail-type-pill${m.selectedType === t.id ? ' selected' : ''}" data-avail-type="${t.id}"
+      style="--avail-color:${t.color}" role="radio" aria-checked="${m.selectedType === t.id}">
+      <span class="option-radio"></span>${esc(t.label)}
+    </button>`).join('');
+
+  const dayAndRecurrence = !isEdit ? `
+    <div class="field">
+      <label class="field-label">Jours</label>
+      <div class="avail-day-pills">
+        ${MODAL_DAY_ORDER.map(label => `
+          <button class="avail-day-pill${m.selectedDays.includes(label) ? ' active' : ''}" data-avail-day="${label}"
+            aria-pressed="${m.selectedDays.includes(label)}">${label}</button>`).join('')}
+      </div>
+      ${m.selectedDays.length === 0 ? `<p class="field-error">Choisissez au moins un jour.</p>` : ''}
+    </div>
+    <div class="field">
+      <label class="field-label">Récurrence</label>
+      <div class="avail-recur-pills">
+        <button class="avail-recur-pill${m.recurrence === 'semaine' ? ' active' : ''}" data-avail-recur="semaine" aria-pressed="${m.recurrence === 'semaine'}">Chaque semaine</button>
+        <button class="avail-recur-pill${m.recurrence === 'mois' ? ' active' : ''}" data-avail-recur="mois" aria-pressed="${m.recurrence === 'mois'}">Chaque mois</button>
+      </div>
+    </div>` : '';
+
+  return `
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
+        <div class="modal-head"><h2 id="modal-title">Disponibilité de la propriété</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+        <div class="modal-body">
+          <div class="field">
+            <label class="field-label">Type</label>
+            <div class="avail-type-pills">${typePills}</div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="field-label" for="avail-start">Début</label>
+              <input type="time" id="avail-start" class="input" value="${minutesToHHMM(m.startMinutes)}" step="900">
+            </div>
+            <div class="field">
+              <label class="field-label" for="avail-end">Fin</label>
+              <input type="time" id="avail-end" class="input" value="${minutesToHHMM(m.endMinutes)}" step="900">
+            </div>
+          </div>
+          ${dayAndRecurrence}
+          ${m.error ? `<p class="field-error">${esc(m.error)}</p>` : ''}
+        </div>
+        <div class="modal-footer" style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="btn-save-availability"${canSave ? '' : ' disabled'}>Sauvegarder</button>
+          ${isEdit ? `<button class="btn btn-danger-outline" id="btn-delete-availability">Supprimer</button>` : ''}
+          <button class="btn btn-outline" id="modal-cancel">Annuler</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindAvailabilityModalEvents() {
+  document.querySelectorAll('[data-avail-type]').forEach(btn => {
+    btn.onclick = () => { state.modal.selectedType = btn.getAttribute('data-avail-type'); state.modal.error = null; render(); };
+  });
+  document.querySelectorAll('[data-avail-day]').forEach(btn => {
+    btn.onclick = () => {
+      const label = btn.getAttribute('data-avail-day');
+      const days = state.modal.selectedDays;
+      const idx = days.indexOf(label);
+      if (idx >= 0) days.splice(idx, 1); else days.push(label);
+      render();
+    };
+  });
+  document.querySelectorAll('[data-avail-recur]').forEach(btn => {
+    btn.onclick = () => {
+      const val = btn.getAttribute('data-avail-recur');
+      state.modal.recurrence = state.modal.recurrence === val ? null : val;
+      render();
+    };
+  });
+  const startInput = document.getElementById('avail-start');
+  const endInput = document.getElementById('avail-end');
+  if (startInput) startInput.onchange = () => { state.modal.startMinutes = timeToMinutes(startInput.value); state.modal.error = null; };
+  if (endInput) endInput.onchange = () => { state.modal.endMinutes = timeToMinutes(endInput.value); state.modal.error = null; };
+
+  const saveBtn = document.getElementById('btn-save-availability');
+  if (saveBtn) saveBtn.onclick = saveAvailabilityModal;
+
+  const delBtn = document.getElementById('btn-delete-availability');
+  if (delBtn) delBtn.onclick = () => {
+    const list = propertyAvailability(state.modal.propertyMls);
+    const idx = list.findIndex(e => e.id === state.modal.eventId);
+    if (idx >= 0) list.splice(idx, 1);
+    closeModal();
+    showToast('Créneau supprimé.', 'success');
+  };
+}
+
+function saveAvailabilityModal() {
+  const m = state.modal;
+  if (m.startMinutes >= m.endMinutes) { m.error = 'L\'heure de fin doit être après l\'heure de début.'; render(); return; }
+  const list = propertyAvailability(m.propertyMls);
+
+  if (m.mode === 'edit') {
+    const conflict = list.some(e => e.id !== m.eventId && e.date === m.date && rangesOverlap(e, m));
+    if (conflict) { m.error = 'Ce créneau chevauche un autre déjà enregistré ce jour-là.'; render(); return; }
+    const ev = list.find(e => e.id === m.eventId);
+    ev.type = m.selectedType; ev.startMinutes = m.startMinutes; ev.endMinutes = m.endMinutes;
+    closeModal();
+    showToast('Créneau mis à jour.', 'success');
+    return;
+  }
+
+  const dates = generateAvailDates(weekStartISO(m.date), m.selectedDays, m.recurrence);
+  const today = todayPlus(0);
+  const validDates = dates.filter(d => d >= today);
+  if (validDates.length === 0) { m.error = 'Toutes les dates choisies sont déjà passées.'; render(); return; }
+  const conflictDate = validDates.find(d => list.some(e => e.date === d && rangesOverlap(e, m)));
+  if (conflictDate) { m.error = `Un créneau existe déjà le ${formatDateLong(conflictDate)}.`; render(); return; }
+
+  validDates.forEach(d => list.push({ id: uid(), type: m.selectedType, date: d, startMinutes: m.startMinutes, endMinutes: m.endMinutes }));
+  closeModal();
+  showToast(validDates.length > 1 ? `${validDates.length} créneaux ajoutés.` : 'Créneau ajouté.', 'success');
 }
 
 function renderEditBuyerModal() {
@@ -3132,6 +3834,7 @@ function bindEvents() {
       e.preventDefault();
       const id = el.getAttribute('data-nav');
       if (id === 'tours') { leaveTour(() => { state.screen = 'list'; state.draft = null; }); return; }
+      if (id === 'properties') { leaveTour(() => { state.screen = 'properties'; state.draft = null; }); return; }
       if (id === 'logout') { showToast('Déconnexion — hors scope du prototype.'); return; }
       showToast('Cette section n\'est pas incluse dans ce prototype.');
     };
@@ -3145,6 +3848,9 @@ function bindEvents() {
   const goBack = () => {
     if (state.screen === 'report') { state.screen = 'builder'; state.reportStopId = null; state.reportDraft = null; render(); return; }
     if (state.screen === 'contact' && state.contactPurpose !== 'create') { state.contactPurpose = 'create'; state.screen = 'builder'; render(); return; }
+    // Sans lien avec un tour en cours : pas de leaveTour, retour direct à la liste.
+    if (state.screen === 'propertyAvailability') { state.screen = 'propertyDetail'; state.availMiniCalOpen = false; render(); return; }
+    if (state.screen === 'propertyDetail') { state.screen = 'properties'; state.propertyDetailMls = null; render(); return; }
     leaveTour(() => {
       if (state.screen === 'contact' || state.screen === 'builder') { state.screen = 'list'; state.draft = null; }
       else { state.screen = 'menu'; }
@@ -3162,6 +3868,9 @@ function bindEvents() {
   if (state.screen === 'contact') bindContactEvents();
   if (state.screen === 'builder') bindBuilderEvents();
   if (state.screen === 'report') bindReportEvents();
+  if (state.screen === 'properties') bindPropertiesEvents();
+  if (state.screen === 'propertyDetail') bindPropertyDetailEvents();
+  if (state.screen === 'propertyAvailability') bindAvailabilityEvents();
   bindModalEvents();
 }
 
@@ -4206,6 +4915,7 @@ function bindModalEvents() {
     };
   }
   if (state.modal.type === 'origin') bindOriginModalEvents();
+  if (state.modal.type === 'availability') bindAvailabilityModalEvents();
   if (state.modal.type === 'editBuyer') bindEditBuyerModalEvents();
   if (state.modal.type === 'editStop') {
     const savePause = document.getElementById('btn-save-edit-pause');
@@ -4573,5 +5283,4 @@ function bindDestinationModalEvents() {
 
 /* ---------------- Init ---------------- */
 
-renderSidebarNav();
 render();
