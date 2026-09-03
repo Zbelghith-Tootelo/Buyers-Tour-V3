@@ -15,6 +15,8 @@ const ICONS = {
   plus: `<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
   chevronRight: `<path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   chevronUp: `<path d="M18 15l-6-6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  arrowUp: `<path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  arrowDown: `<path d="M12 5v14M5 12l7 7 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   pencil: `<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   trash: `<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6h16z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   x: `<path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
@@ -427,7 +429,6 @@ function haversineKm(a, b) {
    permanently if the request fails. Only mock listing coordinates are sent. */
 const routeGeometry = new Map(); // route signature -> { status, legs: [[lat,lng], ...][] }
 const osrmLegMinutes = new Map(); // "from>to" -> driving minutes
-const osrmLegKm = new Map();      // "from>to" -> driving km
 
 const coordKey = c => `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
 const legKey = (a, b) => `${coordKey(a)}>${coordKey(b)}`;
@@ -513,7 +514,6 @@ async function ensureRouteGeometry(props) {
       const coords = leg.steps.flatMap(st => st.geometry.coordinates.map(([lng, lat]) => [lat, lng]));
       const key = legKey(coordsFor(props[i]), coordsFor(props[i + 1]));
       osrmLegMinutes.set(key, Math.max(5, Math.round(leg.duration / 60 / 5) * 5));
-      osrmLegKm.set(key, leg.distance / 1000);
       return coords;
     });
     routeGeometry.set(sig, { status: 'ok', legs });
@@ -532,11 +532,6 @@ function geoTravelMinutes(a, b) {
   if (known != null) return known;
   const km = haversineKm(a, b);
   return Math.max(5, Math.round((km / 40 * 60 + 5) / 5) * 5);
-}
-
-function geoTravelKm(a, b) {
-  const known = osrmLegKm.get(legKey(a, b));
-  return known != null ? known : haversineKm(a, b);
 }
 
 /* ----- Créneaux simultanés -----
@@ -572,15 +567,14 @@ function normalizeParallel(draft) {
 }
 
 // Greedy nearest-neighbour from the first stop, which stays the anchor: the
-// agent decides where the day starts, geography decides the rest.
+// agent decides where the day starts, geography decides the rest. Un simple
+// réordonnancement — aucune heure de visite déjà fixée par le courtier
+// (« Modifier la visite ») ne bouge : `computeSchedule` lit `lockedStart` quelle
+// que soit la position de l'arrêt dans la liste.
 function optimizeByGeography(props, origin) {
   if (props.length < 2) return props.slice();
   const remaining = props.slice();
   const route = [];
-  // Avec un point de départ, la première visite se choisit comme les autres :
-  // c'est le départ qui ancre la chaîne, et le trajet le plus long de la journée
-  // cesse d'échapper au calcul. Quand le tour commence à la première visite, il
-  // faut bien une ancre — et c'est elle qui la fournit.
   const start = originPoint(origin);
   if (!start) route.push(remaining.shift());
   let from = coordsFor(start || route[0]);
@@ -597,20 +591,6 @@ function optimizeByGeography(props, origin) {
   return route;
 }
 
-// Total driving distance and time along the tour, in order.
-function routeTotals(stops, origin) {
-  const props = stops.filter(s => s.type === 'property');
-  // Le premier trajet — du point de départ à la première visite — compte comme
-  // les autres : c'est souvent le plus long de la journée.
-  const pts = routePoints(props, origin);
-  let km = 0, min = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const a = coordsFor(pts[i - 1]), b = coordsFor(pts[i]);
-    km += geoTravelKm(a, b);
-    min += geoTravelMinutes(a, b);
-  }
-  return { km, min, count: props.length };
-}
 // Une propriété hors catalogue n'a pas de courtier inscripteur connu : c'est le
 // courtier acheteur qui le désigne, d'où le null plutôt qu'un nom tiré au hasard.
 function courtierFor(mls) {
@@ -620,15 +600,6 @@ function courtierFor(mls) {
 function courtierPhoneFor(courtier) {
   const h = hashStr(courtier);
   return `(${514 + (h % 3) * 100}) ${100 + (h % 900)}-${1000 + ((h >>> 3) % 9000)}`;
-}
-
-// A pause doesn't move you, so in geo mode a leg is measured from the last
-// property actually visited rather than from the pause sitting in between.
-function travelBetween(prev, cur, lastProperty) {
-  if (cur.type === 'pause') return null;
-  const from = lastProperty || (prev.type === 'property' ? prev : null);
-  if (!from) return null;
-  return geoTravelMinutes(coordsFor(from), coordsFor(cur));
 }
 
 // Virgule décimale : l'interface est en français, « 0.4 km » se lit comme une
@@ -741,6 +712,22 @@ function stopNeedsAction(stop) {
 // inscripteur, elle ne se renégocie plus par glisser-déposer mais par « Éditer ».
 function stopIsDraggable(stop) {
   return !stop.sentAt;
+}
+
+// Équivalent du glisser-déposer par bouton : le seul qui fonctionne au doigt
+// (le glisser-déposer HTML5 ne se déclenche pas sur navigateur mobile) et le
+// seul qui marche au clavier. Même règle que le glisser : seul un arrêt encore
+// au bac à sable se déplace.
+function moveStop(stopId, direction) {
+  const stop = state.draft.stops.find(s => s.id === stopId);
+  if (!stop || !stopIsDraggable(stop)) return;
+  const stops = state.draft.stops;
+  const idx = stops.indexOf(stop);
+  const swapIdx = idx + direction;
+  if (swapIdx < 0 || swapIdx >= stops.length) return;
+  [stops[idx], stops[swapIdx]] = [stops[swapIdx], stops[idx]];
+  markDirtyIfSent();
+  render();
 }
 
 // Le tour n'a pas de champ `status` : il se déduit de l'état de ses arrêts.
@@ -862,6 +849,7 @@ const FEATURE_FLAGS = [
   { group: 'Sources de propriétés', id: 'propertyViaBrokerOnly', label: 'Propriété via courtier uniquement (TB)', help: 'Sur TB, une propriété ne peut être ajoutée qu\'après avoir sélectionné un courtier.', default: false, wired: false },
 
   { group: 'Démo', id: 'simulateConfirmation', label: 'Simuler la réponse des courtiers', help: 'Rend le statut de chaque visite cliquable pour basculer entre « À confirmer » et « Confirmée ». Outil de démo : en production, seul le courtier inscripteur confirme.', default: true, wired: true },
+  { group: 'Démo', id: 'tourOptimize', label: 'Optimiser le tour', help: 'Affiche le bouton « Optimiser le tour » dans le constructeur, qui réordonne les arrêts par proximité géographique. Désactivé, le tour ne se compose que par glisser-déposer manuel.', default: true, wired: true },
 ];
 
 // Une seule API Buyer's Tour sert les deux plateformes : ce qui les distingue
@@ -882,8 +870,8 @@ const PLATFORMS = [
 // encore construits : il documente la cible et s'appliquera tout seul au fur et
 // à mesure que les flags passent en `wired`.
 const PLATFORM_PRESETS = {
-  immocontact: { mlsCart: false, customAddress: true, propertyViaBrokerOnly: false, simulateConfirmation: true },
-  touchbase: { mlsCart: true, customAddress: false, propertyViaBrokerOnly: true, simulateConfirmation: true },
+  immocontact: { mlsCart: false, customAddress: true, propertyViaBrokerOnly: false, simulateConfirmation: true, tourOptimize: true },
+  touchbase: { mlsCart: true, customAddress: false, propertyViaBrokerOnly: true, simulateConfirmation: true, tourOptimize: true },
 };
 
 // Appliquer ne touche qu'aux flags branchés : les autres n'ont aucun
@@ -907,7 +895,7 @@ function currentPlatform() {
 // Saved values win over the defaults above, so bump the suffix whenever a
 // `default` changes — otherwise anyone who already toggled a flag keeps the old
 // default for the new one and never sees the feature.
-const FLAG_STORAGE_KEY = 'ic-buyers-tour-flags-v4';
+const FLAG_STORAGE_KEY = 'ic-buyers-tour-flags-v5';
 
 function loadFlags() {
   const flags = {};
@@ -1096,81 +1084,21 @@ function ackSameSlot(stop) {
 
 /* ----- Optimisation ----- */
 
-// L'optimisation réordonne le tour et peut donc changer l'heure de visites déjà
-// confirmées. On la calcule d'abord sur une copie pour la montrer avant de
-// l'appliquer : le courtier voit exactement ce qui bouge et décide.
-function planOptimization() {
-  const beforeStart = new Map(computeSchedule(state.draft).map(r => [r.stop.id, r.start]));
-  const beforeOrder = state.draft.stops.map(s => s.id).join(',');
-  const beforeTotals = routeTotals(state.draft.stops, state.draft.origin);
-
-  const sim = JSON.parse(JSON.stringify(state.draft));
-  const pauses = sim.stops.filter(s => s.type === 'pause');
-  const props = sim.stops.filter(s => s.type === 'property');
-  sim.stops = [...optimizeByGeography(props, sim.origin), ...pauses];
-  normalizeParallel(sim);
-
-  // Une heure verrouillée épinglerait la visite à sa place actuelle et
-  // empêcherait le tour de se recalculer. On libère tout, on recalcule, puis on
-  // ne rend la confirmation qu'aux visites qui retombent sur leur heure.
-  const held = sim.stops
-    .filter(s => s.type === 'property' && s.locked && s.lockedStart)
-    .map(s => ({ id: s.id, lockedStart: s.lockedStart }));
-  held.forEach(h => {
-    const s = sim.stops.find(x => x.id === h.id);
-    s.locked = false;
-    s.lockedStart = null;
-  });
-  const afterStart = new Map(computeSchedule(sim).map(r => [r.stop.id, r.start]));
-  const released = [];
-  held.forEach(h => {
-    const s = sim.stops.find(x => x.id === h.id);
-    if (afterStart.get(h.id) === timeToMinutes(h.lockedStart)) {
-      s.locked = true;
-      s.lockedStart = h.lockedStart;
-    } else {
-      s.status = 'pending';
-      released.push(h.id);
-    }
-  });
-
-  const rows = sim.stops.filter(s => s.type === 'property').map(s => ({
-    label: stopShortLabel(s),
-    courtier: s.courtier,
-    oldStart: beforeStart.get(s.id),
-    newStart: afterStart.get(s.id),
-    released: released.includes(s.id),
-  }));
-
-  return {
-    sim,
-    rows,
-    released,
-    before: beforeTotals,
-    after: routeTotals(sim.stops, sim.origin),
-    changed: sim.stops.map(s => s.id).join(',') !== beforeOrder || rows.some(r => r.oldStart !== r.newStart),
-  };
-}
-
+// Un simple réordonnancement par proximité géographique : sans notion de
+// trajet ni d'heure d'arrivée à l'écran, il ne reste rien à prévisualiser —
+// aucune heure déjà demandée ne bouge (elle est fixée par le courtier, pas
+// par la position dans la liste), donc on applique directement.
 function optimizeDraftStops() {
-  const plan = planOptimization();
-  if (!plan.changed) {
-    showToast('Le tour suit déjà le trajet le plus court.');
-    return;
-  }
-  state.modal = { type: 'optimizePlan', plan };
-  render();
-}
-
-function applyOptimization(plan) {
-  state.draft.stops = plan.sim.stops;
+  const pauses = state.draft.stops.filter(s => s.type === 'pause');
+  const props = state.draft.stops.filter(s => s.type === 'property');
+  const reordered = [...optimizeByGeography(props, state.draft.origin), ...pauses];
+  const unchanged = reordered.map(s => s.id).join(',') === state.draft.stops.map(s => s.id).join(',');
+  if (unchanged) { showToast('Le tour suit déjà cet ordre.'); return; }
+  state.draft.stops = reordered;
+  normalizeParallel(state.draft);
   markDirtyIfSent();
-  state.modal = null;
   render();
-  const { km, min } = plan.after;
-  showToast(`Tour optimisé : ${formatKm(km)} et ${formatMinutes(min)} de trajet.`
-    + (plan.released.length ? ` ${plan.released.length} visite${plan.released.length > 1 ? 's' : ''} à faire reconfirmer.` : ''),
-    'success');
+  showToast('Tour réordonné par proximité géographique.', 'success');
 }
 
 // Relancer remet le compteur du délai à zéro : les arrêts « sans réponse »
@@ -1282,24 +1210,22 @@ function tourEndMinutes(draft) {
 const SLOT_MINUTES = 15;
 function ceilToSlot(min) { return Math.ceil(min / SLOT_MINUTES) * SLOT_MINUTES; }
 
+// Le courtier fixe librement l'heure de chaque arrêt (via « Modifier la
+// visite ») : ce calcul ne fait qu'enchaîner ce qui n'a pas encore d'heure
+// propre juste après ce qui précède, sans notion de trajet ni d'arrivée —
+// nos clients veulent cette liberté de planification, sans que l'application
+// ne la contraigne ou ne la conteste.
 function computeSchedule(draft) {
   let cursor = timeToMinutes(draft.time);
   const rows = [];
-  let lastProperty = null;
   let lastStart = null;
   for (let i = 0; i < draft.stops.length; i++) {
     const stop = draft.stops[i];
     const prev = draft.stops[i - 1];
     // Créneau partagé : la visite démarre avec la précédente au lieu de la
-    // suivre. Pas de trajet à compter — il se fait pendant le créneau.
+    // suivre.
     const sharesSlot = !!(stop.type === 'property' && stop.parallel
       && prev && prev.type === 'property' && lastStart !== null);
-    let travelBefore = null;
-    if (prev && !sharesSlot) {
-      travelBefore = travelBetween(prev, stop, lastProperty);
-      if (travelBefore) cursor += travelBefore;
-    }
-    let conflict = null;
     let start;
     if (stop.type === 'pause') {
       // Même palier que les visites : une liste où seule la pause tombe à 15h42
@@ -1307,39 +1233,23 @@ function computeSchedule(draft) {
       start = ceilToSlot(cursor);
       cursor = start + stop.duration;
     } else {
-      // On rembobine le curseur au début du créneau, puis la logique d'heure
-      // verrouillée s'applique telle quelle : une visite confirmée à une autre
-      // heure que le créneau produit le conflit habituel, ce qui est exact.
       const slotEnd = cursor;
       if (sharesSlot) cursor = lastStart;
       if (stop.locked && stop.lockedStart) {
-        const lockedMin = timeToMinutes(stop.lockedStart);
-        if (cursor > lockedMin) {
-          conflict = {
-            arrival: cursor,
-            confirmed: lockedMin,
-            diff: cursor - lockedMin,
-            afterPause: prev && prev.type === 'pause',
-            travelBefore,
-          };
-        }
-        start = lockedMin;
-        cursor = lockedMin + stop.duration;
+        start = timeToMinutes(stop.lockedStart);
+        cursor = start + stop.duration;
       } else {
         // Une heure de visite se demande au quart d'heure : c'est le palier sur
         // lequel les courtiers s'entendent, et les sélecteurs d'heure de
-        // l'application n'en proposent pas d'autre. On arrondit vers le haut —
-        // arrondir vers le bas fixerait la visite avant l'arrivée sur place. Le
-        // trajet réel reste affiché tel quel dans le bandeau ; l'écart est du
-        // battement, pas une durée maquillée.
+        // l'application n'en proposent pas d'autre.
         start = ceilToSlot(cursor);
         cursor = start + stop.duration;
       }
       // La visite la plus longue du créneau décide de la suite du tour.
       if (sharesSlot) cursor = Math.max(cursor, slotEnd);
     }
-    rows.push({ stop, start, travelBefore, conflict, sharesSlot });
-    if (stop.type !== 'pause') { lastProperty = stop; lastStart = start; }
+    rows.push({ stop, start, sharesSlot });
+    if (stop.type !== 'pause') lastStart = start;
   }
   return rows;
 }
@@ -1374,9 +1284,13 @@ function applyTourDate(date) {
   render();
 }
 
+// Tant que rien n'est parti, l'heure du premier arrêt n'est qu'une intention :
+// le courtier la change encore librement, comme le reste du bac à sable. Elle
+// ne devient un engagement — et ne fige donc plus le sélecteur — qu'une fois
+// la demande envoyée au courtier inscripteur.
 function tourStartIsFixed(draft) {
   const first = draft.stops[0];
-  return !!(first && first.type === 'property' && first.locked && first.lockedStart);
+  return !!(first && first.type === 'property' && first.sentAt && first.lockedStart);
 }
 
 /* ---------------- Rendering ---------------- */
@@ -1594,8 +1508,8 @@ function renderPropertyDetailScreen() {
     <p class="property-detail-address">${esc(p.address)}</p>
     <div class="property-detail-toggle-row">
       <span>Active</span>
-      <button class="switch ${active ? 'on' : ''}" id="btn-toggle-property-active" role="switch" aria-checked="${active}" aria-label="Propriété active">
-        <span class="switch-thumb">${active ? icon('check') : ''}</span>
+      <button class="property-switch ${active ? 'on' : ''}" id="btn-toggle-property-active" role="switch" aria-checked="${active}" aria-label="Propriété active">
+        <span class="property-switch-thumb">${active ? icon('check') : ''}</span>
       </button>
     </div>
     <div class="property-detail-menu">
@@ -2038,10 +1952,10 @@ function renderListScreen() {
       <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
       <div class="search-bar">
         <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
-             à l'œil. Le nom accessible dit ce que la recherche compare — un
-             contact, pas une adresse — ce que le texte d'invite disait déjà mais
-             qu'il cesse de dire dès la première frappe. -->
-        <input type="search" class="input" id="list-search" placeholder="Chercher un contact..."
+             à l'œil. Le nom accessible dit ce que la recherche compare — le nom
+             de l'acheteur, pas une adresse — ce que le texte d'invite ne dit
+             plus dès la première frappe. -->
+        <input type="search" class="input" id="list-search" placeholder="Chercher un tour..."
           aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
         ${icon('search')}
       </div>
@@ -2234,8 +2148,17 @@ function renderBuyerForm() {
    `variant` ne fait varier que ce qui dépend de l'écran : les actions n'ont de
    sens que là où on peut agir. Le reste — glyphe, adresse, horaire, statut —
    décrit le même objet, donc se rend pareil (loi de similarité). */
-function renderStopCard(stop, start, { variant = 'builder', sameSlot = false } = {}) {
+function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, isFirst = false, isLast = false } = {}) {
   const actionable = variant === 'builder';
+  // Seul équivalent tactile et clavier au glisser-déposer : masqués sur
+  // desktop (où la poignée suffit), affichés à sa place en mobile.
+  const moveButtons = !actionable || !stopIsDraggable(stop) ? '' : `
+        <span class="move-stop-group">
+          <button class="btn-icon move-stop-btn" data-move-stop="${stop.id}" data-direction="-1" ${isFirst ? 'disabled' : ''}
+            title="Monter dans le tour" aria-label="Monter ${esc(stopShortLabel(stop))} dans le tour">${icon('arrowUp')}</button>
+          <button class="btn-icon move-stop-btn" data-move-stop="${stop.id}" data-direction="1" ${isLast ? 'disabled' : ''}
+            title="Descendre dans le tour" aria-label="Descendre ${esc(stopShortLabel(stop))} dans le tour">${icon('arrowDown')}</button>
+        </span>`;
 
   if (stop.type === 'pause') {
     return `
@@ -2248,6 +2171,7 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false } =
         </div>
         ${!actionable ? '' : `
         <div class="stop-actions">
+          ${moveButtons}
           <button class="btn-icon" data-edit-pause="${stop.id}" title="Modifier la pause" aria-label="Modifier la pause de ${stop.duration} minutes">${icon('pencil')}</button>
           <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer la pause" aria-label="Retirer du tour la pause de ${stop.duration} minutes">${icon('trash')}</button>
         </div>`}
@@ -2302,6 +2226,7 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false } =
       </div>
       ${!actionable ? '' : `
       <div class="stop-actions">
+        ${moveButtons}
         <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
              paragraphe lui vole son bord gauche. Son libellé est masqué en
              desktop, donc absent de l'arbre d'accessibilité — d'où l'aria-label,
@@ -2355,13 +2280,10 @@ function renderBuilderScreen() {
      a ni distance ni départ à annoncer avant la première destination. */
   const firstProp = rows.find(r => r.stop.type === 'property');
   const originStart = originPoint(draft.origin);
-  const totals = routeTotals(draft.stops, draft.origin);
   const summaryHtml = !firstProp ? '' : (() => {
     const stat = (n, l) => `<span class="stat-item"><strong>${n}</strong> ${l}</span>`;
     const stats = [
-      stat(totals.count, `arrêt${totals.count > 1 ? 's' : ''}`),
-      stat(formatKm(totals.km), 'de trajet'),
-      stat(formatMinutes(totals.min), 'sur la route'),
+      stat(propertyCount, `arrêt${propertyCount > 1 ? 's' : ''}`),
     ];
     // L'heure de départ tient à la ligne du départ et non aux mesures : elle
     // appartient au lieu d'où l'on part, et « 14h05 départ » se lirait à l'envers.
@@ -2406,30 +2328,28 @@ function renderBuilderScreen() {
   })();
 
   const stopsHtml = draft.stops.length === 0 ? `
-    <!-- Une seule phrase sur deux lignes, donc deux lignes de même taille : la
-         maquette ne hiérarchise pas ici, contrairement à l'état vide de la liste
-         où le second niveau porte une consigne distincte. Le rythme de 26 px
-         remplace le remplissage posé en ligne. -->
     <div class="empty-state tour-empty">
-      <p>Aucune destination ajoutée pour l'instant.</p>
-      <p>Utilisez « Ajouter une destination » pour composer le tour.</p>
+      <p>Aucune destination ajoutée</p>
+      <p>Utilisez le bouton ci-dessous pour ajouter les propriétés à visiter. Vous pourrez ensuite organiser l'ordre du tour.</p>
     </div>
-  ` : rows.map(({ stop, start, travelBefore, conflict, sharesSlot }, i) => {
+  ` : rows.map(({ stop, start, sharesSlot }, i) => {
     const prevStop = draft.stops[i - 1];
-    // La proposition de créneau partagé vit dans le bandeau de trajet : c'est
-    // exactement l'intervalle dont il est question (loi de proximité).
+    // La proposition de créneau partagé vit dans l'intervalle entre les deux
+    // cartes : c'est exactement l'écart dont il est question (loi de proximité).
     const canShareSlot = !sharesSlot && !stop.parallel && nearbyStops(prevStop, stop);
     // Les deux cartes d'un créneau portent le même liseré : le groupe se lit
     // d'un coup d'œil, bandeau compris (loi de continuité).
     const opensSlot = !!(rows[i + 1] && rows[i + 1].sharesSlot);
+    // Chaque courtier plante son heure lui-même (« Modifier la visite ») : cet
+    // intervalle ne porte donc plus de trajet ni d'arrivée. Il ne reste plus
+    // rien à y dire quand les deux arrêts n'ont rien de particulier entre eux —
+    // seule la suggestion de créneau simultané, entre deux propriétés voisines,
+    // justifie encore une bulle ici.
     let travelHtml = '';
-    if (travelBefore !== null && !conflict) {
-      const nextIsPause = stop.type === 'pause';
-      const label = nextIsPause ? `Trajet estimé : ${travelBefore} min avant la pause` : `Trajet estimé : ${travelBefore} min`;
+    if (prevStop && !sharesSlot && canShareSlot) {
       travelHtml = `
-        <div class="travel-chip">${icon('car')} <span class="banner-text">${label}${canShareSlot
-          ? ` — ${formatKm(slotDistanceKm(prevStop, stop))} seulement entre les deux` : ''}</span>
-          ${canShareSlot ? `<button class="btn-inline" data-share-slot="${stop.id}">Même créneau</button>` : ''}
+        <div class="travel-chip">${icon('pin')} <span class="banner-text">${formatKm(slotDistanceKm(prevStop, stop))} seulement entre les deux</span>
+          <button class="btn-inline" data-share-slot="${stop.id}">Même créneau</button>
           <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}" aria-label="${bannerEditTitle}">${icon('pencil')}</button></span>
         </div>`;
     }
@@ -2455,25 +2375,9 @@ function renderBuilderScreen() {
           <button class="btn-inline ghost" data-split-slot="${stop.id}">Séparer les visites</button>
         </div>`;
     }
-    let conflictHtml = '';
-    if (conflict) {
-      // « Confirmée » ne vaut que si le courtier inscripteur a répondu. Sur un
-      // arrêt du bac à sable, l'heure est seulement celle qu'on a retenue.
-      // Le conflit porte sur l'arrêt qui suit, d'où la lecture du statut ici :
-      // `st` n'existe que dans la branche « propriété », plus bas.
-      const heureDite = effectiveStopStatus(stop) === 'confirmed' ? 'l\'heure confirmée' : 'l\'heure prévue';
-      const text = conflict.afterPause
-        ? `<strong>Attention :</strong> trajet estimé ${conflict.travelBefore} min, dépasse le temps de pause disponible.`
-        : `<strong>Attention :</strong> arrivée prévue à ${minutesToLabel(conflict.arrival)}, après ${heureDite} de ${minutesToLabel(conflict.confirmed)}.`;
-      conflictHtml = `
-        <div class="alert-banner warning">${icon('warning')} <span class="banner-text">${text}</span>
-          <span class="banner-edit"><button class="banner-edit-btn" data-edit-stop="${stop.id}" title="${bannerEditTitle}" aria-label="${bannerEditTitle}">${icon('pencil')}</button></span>
-        </div>`;
-    }
-
     // La carte est la même partout ; seul ce qui se décide sous elle appartient
     // à cet écran.
-    const card = renderStopCard(stop, start, { variant: 'builder', sameSlot: sharesSlot || opensSlot });
+    const card = renderStopCard(stop, start, { variant: 'builder', sameSlot: sharesSlot || opensSlot, isFirst: i === 0, isLast: i === draft.stops.length - 1 });
     let answerHtml = '';
     if (stop.type !== 'pause') {
       const st = effectiveStopStatus(stop);
@@ -2515,7 +2419,7 @@ function renderBuilderScreen() {
           </div>`;
       }
     }
-    return travelHtml + slotHtml + card + answerHtml + conflictHtml;
+    return travelHtml + slotHtml + card + answerHtml;
   }).join('');
 
   // L'acheteur n'apparaît qu'une fois choisi, à la fin du parcours : pendant la
@@ -2560,9 +2464,15 @@ function renderBuilderScreen() {
   // Le premier arrêt porte son heure : le sélecteur ne pilote plus rien et
   // affichait une valeur que le départ et la première visite contredisaient.
   // Il cède la place à la lecture de l'heure réelle, et dit d'où elle vient.
+  // Tant qu'on est au bac à sable, le premier arrêt peut déjà porter sa propre
+  // heure demandée (« Modifier la visite ») : c'est elle que le sélecteur doit
+  // montrer et faire bouger, sinon il affiche une heure de tour que plus rien
+  // ne suit réellement.
+  const firstStop = draft.stops[0];
+  const firstStopTime = (firstStop && firstStop.type === 'property' && firstStop.lockedStart) || draft.time;
   const timeField = !tourStartIsFixed(draft)
     ? `<select class="input select" id="builder-time">
-        ${TIME_OPTIONS.map(t => `<option value="${t}" ${t === draft.time ? 'selected' : ''}>${t.replace(':', 'h')}</option>`).join('')}
+        ${TIME_OPTIONS.map(t => `<option value="${t}" ${t === firstStopTime ? 'selected' : ''}>${t.replace(':', 'h')}</option>`).join('')}
       </select>`
     : (() => {
         const first = draft.stops[0];
@@ -2575,11 +2485,6 @@ function renderBuilderScreen() {
               : 'Heure demandée au courtier inscripteur'}</span>
           </p>`;
       })();
-
-  // Chaque indisponibilité dit ce qui manque, et le dit au futur : c'est une
-  // étape à franchir, pas un refus.
-  const optiWhy = whenBlocked('btn-optimize', propertyCount >= 2,
-    'Ajoutez au moins deux propriétés : l\'optimisation compare des trajets entre elles.');
 
   const panelStatuses = ['en_cours', 'confirme', 'non_envoye', 'partage'];
   const validationPanel = !panelStatuses.includes(status) ? '' : `
@@ -2639,16 +2544,19 @@ function renderBuilderScreen() {
 
     ${validationPanel}
 
-    <!-- La maquette supprime le libellé « Tour : » : les trois boutons disent
-         déjà ce qu'ils font, et l'intitulé ne coiffait aucune section fermée. -->
-    <div class="action-row">
-      <button class="btn btn-outline" id="btn-add-destination">${icon('plus')} Ajouter une destination</button>
-      <button class="btn btn-outline" id="btn-optimize"${optiWhy.a}>Optimiser le tour</button>${optiWhy.n}
-    </div>
-
     ${summaryHtml}
     <div>${stopsHtml}</div>
 
+    <!-- En mobile first, l'action suivante se retrouve près du pouce, juste
+         au-dessus de l'envoi — pas en haut d'un écran qui peut défiler loin. -->
+    <div class="action-row">
+      <button class="btn btn-outline" id="btn-add-destination">${icon('plus')} Ajouter une destination</button>
+      ${flag('tourOptimize') ? (() => {
+        const optiWhy = whenBlocked('btn-optimize', propertyCount >= 2,
+          'Ajoutez au moins deux propriétés pour réordonner le tour.');
+        return `<button class="btn btn-outline" id="btn-optimize"${optiWhy.a}>Optimiser le tour</button>${optiWhy.n}`;
+      })() : ''}
+    </div>
 
     <div class="footer-actions">${renderFooterActions(propertyCount, status, tally)}</div>
   `;
@@ -2657,8 +2565,8 @@ function renderBuilderScreen() {
 // Une seule action primaire par statut : c'est le statut qui dit quoi faire
 // ensuite, pas l'utilisateur qui doit le déduire de trois boutons de même poids.
 function renderFooterActions(propertyCount, status, tally) {
-  const del = `<button class="btn btn-danger-outline" id="btn-delete-tour">${status === 'brouillon'
-    ? 'Supprimer' : 'Supprimer ce tour et annuler les demandes de visites'}</button>`;
+  const del = `<button class="btn btn-danger-outline" id="btn-delete-tour">${icon('trash')} ${status === 'brouillon'
+    ? 'Supprimer le tour' : 'Supprimer ce tour et annuler les demandes de visites'}</button>`;
   // L'envoi se fait sur l'écran de choix du client : ici on ne fait que s'y
   // rendre, d'où « Choisir l'acheteur » et non « Choisir et envoyer ». Quand
   // l'acheteur est déjà retenu, cet écran sert d'écran de confirmation — on y
@@ -2761,7 +2669,6 @@ function renderModal() {
     root.innerHTML = renderConfirmModal('Dater ce tour dans le passé ?', body, 'btn-confirm-past-date', 'Dater dans le passé', 'primary');
     return;
   }
-  if (state.modal.type === 'optimizePlan') { root.innerHTML = renderOptimizePlanModal(); return; }
   if (state.modal.type === 'confirmLeave') { root.innerHTML = renderConfirmLeaveModal(); return; }
   if (state.modal.type === 'confirmRemoveStop') { root.innerHTML = renderConfirmRemoveStopModal(); return; }
   if (state.modal.type === 'editBuyer') { root.innerHTML = renderEditBuyerModal(); return; }
@@ -3279,64 +3186,6 @@ function renderConfirmSendUpdateModal() {
             <button class="btn btn-primary btn-block" id="btn-send-update-broker-buyer">Courtier et acheteur</button>
             <button class="btn btn-primary btn-block" id="btn-send-update-broker-only">Courtier uniquement</button>
           </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-// Optimiser réordonne le tour et déplace des heures déjà demandées, parfois
-// déjà confirmées. On montre donc le résultat avant de l'appliquer : le gain de
-// trajet d'un côté, ce que ça coûte de l'autre, puis le courtier décide.
-function renderOptimizePlanModal() {
-  const plan = state.modal.plan;
-  const dKm = plan.before.km - plan.after.km;
-  const dMin = plan.before.min - plan.after.min;
-  const gain = dKm > 0.1 || dMin > 0;
-  const delta = !gain
-    ? 'Même distance, mais les visites s\'enchaînent dans un seul sens.'
-    : `${dKm > 0.1 ? `− ${formatKm(dKm)}` : ''}${dKm > 0.1 && dMin > 0 ? ' et ' : ''}${dMin > 0 ? `− ${formatMinutes(dMin)}` : ''} de trajet.`;
-
-  return `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-        <div class="modal-head"><h2 id="modal-title">Optimiser le tour</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
-        <div class="modal-body">
-          <div class="plan-summary">
-            <div class="plan-summary-row">
-              <span class="plan-summary-label">Trajet actuel</span>
-              <span class="plan-summary-value">${formatKm(plan.before.km)} · ${formatMinutes(plan.before.min)}</span>
-            </div>
-            <div class="plan-summary-row is-after">
-              <span class="plan-summary-label">Après optimisation</span>
-              <span class="plan-summary-value">${formatKm(plan.after.km)} · ${formatMinutes(plan.after.min)}</span>
-            </div>
-            <p class="plan-delta ${gain ? 'is-gain' : ''}">${delta}</p>
-          </div>
-
-          <p class="section-label" style="margin:18px 0 8px;">Nouvel ordre et heures de visite :</p>
-          <ol class="plan-list">
-            ${plan.rows.map((r, i) => `
-              <li class="plan-row${r.oldStart === r.newStart ? ' is-same' : ''}">
-                <span class="plan-index">${i + 1}</span>
-                <span class="plan-label">${esc(r.label)}</span>
-                <span class="plan-time">
-                  ${r.oldStart === r.newStart
-                    ? `${minutesToLabel(r.newStart)} <span class="plan-unchanged">inchangée</span>`
-                    : `<span class="plan-old">${minutesToLabel(r.oldStart)}</span> → <strong>${minutesToLabel(r.newStart)}</strong>`}
-                </span>
-              </li>`).join('')}
-          </ol>
-
-          ${plan.released.length ? `
-            <div class="alert-banner warning" style="margin-top:16px;">${icon('warning')}
-              <span class="banner-text"><strong>${plan.released.length} visite${plan.released.length > 1 ? 's' : ''} déjà confirmée${plan.released.length > 1 ? 's' : ''}</strong>
-                change${plan.released.length > 1 ? 'nt' : ''} d'heure et repassera${plan.released.length > 1 ? 'ont' : ''} « à confirmer » :
-                le courtier inscripteur avait accepté une heure précise, pas une place dans le tour.</span>
-            </div>` : ''}
-        </div>
-        <div class="modal-footer" style="display:flex;gap:10px;">
-          <button class="btn btn-primary" id="btn-apply-optimize">Appliquer les nouvelles heures</button>
-          <button class="btn btn-outline" id="modal-cancel">Annuler</button>
         </div>
       </div>
     </div>`;
@@ -4101,7 +3950,16 @@ function bindBuilderEvents() {
     applyTourDate(valeur);
   };
   const timeSelect = document.getElementById('builder-time');
-  if (timeSelect) timeSelect.onchange = () => { state.draft.time = timeSelect.value; markDirtyIfSent(); render(); };
+  if (timeSelect) timeSelect.onchange = () => {
+    state.draft.time = timeSelect.value;
+    // Le premier arrêt, s'il en a déjà une, garde la main sur l'heure réelle du
+    // tour (computeSchedule) : la faire bouger avec le sélecteur, plutôt que de
+    // la laisser en désaccord avec ce qu'il affiche.
+    const first = state.draft.stops[0];
+    if (first && first.type === 'property' && first.lockedStart) first.lockedStart = timeSelect.value;
+    markDirtyIfSent();
+    render();
+  };
 
   const openDestModal = () => {
     // Remember how many stops the tour had when the modal opened: the footer
@@ -4114,6 +3972,9 @@ function bindBuilderEvents() {
   const addBtn1 = document.getElementById('btn-add-destination');
   if (addBtn1) addBtn1.onclick = openDestModal;
 
+  const optimizeBtn = document.getElementById('btn-optimize');
+  if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
+
   const editOrigin = document.getElementById('btn-edit-origin');
   if (editOrigin) editOrigin.onclick = () => {
     const o = state.draft.origin || newOrigin();
@@ -4122,9 +3983,6 @@ function bindBuilderEvents() {
     render();
   };
 
-
-  const optimizeBtn = document.getElementById('btn-optimize');
-  if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
 
   const toggleMap = document.getElementById('btn-toggle-map');
   if (toggleMap) toggleMap.onclick = () => { state.mapOpen = !state.mapOpen; render(); };
@@ -4376,6 +4234,10 @@ function bindBuilderEvents() {
   if (deleteBtn) deleteBtn.onclick = () => { state.modal = { type: 'confirmDeleteTour' }; render(); };
 
   bindDragAndDrop();
+
+  document.querySelectorAll('[data-move-stop]').forEach(el => {
+    el.onclick = () => moveStop(el.getAttribute('data-move-stop'), +el.getAttribute('data-direction'));
+  });
 }
 
 /* ----- Leaflet tour map -----
@@ -4887,10 +4749,6 @@ function bindModalEvents() {
       render();
       showToast('Tour de visites supprimé.');
     };
-  }
-  if (state.modal.type === 'optimizePlan') {
-    const btn = document.getElementById('btn-apply-optimize');
-    if (btn) btn.onclick = () => applyOptimization(state.modal.plan);
   }
   if (state.modal.type === 'confirmLeave') {
     const go = state.pendingLeave;

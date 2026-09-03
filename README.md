@@ -25,8 +25,7 @@ Statuts d'un tour, tous dérivés : `brouillon · en_cours · confirme · non_en
 1. **Liste** — à venir / passés, rangés par date. Un tour daté d'hier bascule seul dans « Passé », et se ramène d'un bouton.
 2. **Nommer l'acheteur** — dès le bac à sable, pour que deux brouillons ne se ressemblent pas. Le courriel n'est exigé qu'à l'envoi.
 3. **Composer** — propriétés du catalogue, hors catalogue, arrêts libres, pauses. Réordonnancement par glisser-déposer tant que rien n'est parti.
-4. **Optimiser et situer** — l'optimisation part du point de départ du courtier, pas de la première
-   propriété. La carte se déplie dans la page même, sous la synthèse du trajet.
+4. **Fixer l'heure et situer** — chaque arrêt garde l'heure que le courtier lui a demandée (« Modifier la visite »), sans notion de trajet ni d'arrivée : nos clients veulent cette liberté de planification. La carte reste disponible, dépliée dans la page même, pour situer les arrêts.
 5. **Envoyer** — chaque demande peut partir seule, ou en lot avec sélection des propriétés.
 6. **Traiter les réponses** — confirmation, contre-proposition, refus, annulation après confirmation, absence de réponse à 48 h. Chacune a sa sortie sous l'arrêt concerné.
 7. **Partager à l'acheteur** — une fois les visites confirmées. Le tour signale s'il n'est plus à jour depuis l'envoi.
