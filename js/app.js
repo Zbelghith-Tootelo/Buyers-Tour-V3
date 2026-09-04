@@ -15,6 +15,10 @@ const ICONS = {
   plus: `<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
   chevronRight: `<path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   chevronUp: `<path d="M18 15l-6-6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  chevronDown: `<path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  home: `<path d="M4 11.5L12 4l8 7.5M6 10v9a1 1 0 001 1h3v-6h4v6h3a1 1 0 001-1v-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  restaurant: `<path d="M8 3v6a2 2 0 002 2v10M8 3v6M6 3v6M10 3v6M17 3c-1.5 0-3 1.5-3 4s1.5 4 3 4v10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  pauseBars: `<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>`,
   arrowUp: `<path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   arrowDown: `<path d="M12 5v14M5 12l7 7 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   pencil: `<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
@@ -697,8 +701,11 @@ function moveStop(stopId, direction) {
 }
 
 // Le tour n'a pas de champ `status` : il se déduit de l'état de ses arrêts.
+// Une adresse personnalisée n'entre jamais dans ce calcul : elle ne demande
+// jamais d'approbation, donc son `sentAt` toujours vide ne doit pas maintenir
+// le tour en « en cours » à lui seul.
 function tourStatus(t) {
-  const props = t.stops.filter(s => s.type === 'property');
+  const props = t.stops.filter(s => s.type === 'property' && !s.customKind);
   if (!props.some(s => s.sentAt)) return 'brouillon';
   if (t.sharedAt) return 'partage';
   // Une demande encore au bac à sable compte autant qu'une réponse à traiter :
@@ -717,7 +724,7 @@ function tourSentAt(t) {
 // Compte des arrêts, pour le récapitulatif en tête du tour et pour décider
 // quels CTA proposer.
 function validationTally(t) {
-  const props = t.stops.filter(s => s.type === 'property');
+  const props = t.stops.filter(s => s.type === 'property' && !s.customKind);
   const tally = { total: props.length, sandbox: 0, confirmed: 0, waiting: 0, toHandle: 0 };
   props.forEach(s => {
     const st = effectiveStopStatus(s);
@@ -901,6 +908,10 @@ const state = {
   destModalTab: 'nom',
   destModalSearch: '',
   destModalPrefillAddress: '',
+  destModalArretKind: null,        // type choisi dans l'onglet Adresse personnalisée — null tant que le courtier n'y a pas touché
+  destModalArretKindOpen: false,   // menu déroulant du type, déplié ou non
+  destModalArretFrom: null,        // heure de départ choisie (minutes) — null : le courtier n'est pas obligé d'en fixer une
+  destModalArretDuration: null,    // durée choisie (minutes) — même chose, facultative
   newProperty: null,        // formulaire « Ajouter une propriété inexistante »
   newPropertyTouched: false, // les champs manquants ne sont signalés qu'après un premier envoi
   mapOpen: false,           // panneau de trajet déplié — replié par défaut, la carte reste un choix
@@ -1087,7 +1098,9 @@ function shareTourWithBuyer(buyer) {
 function markStopsSent(stops) {
   const now = Date.now();
   stops.forEach(s => {
-    if (s.type !== 'property' || s.sentAt) return;
+    // Une adresse personnalisée n'a pas de courtier inscripteur à qui envoyer
+    // une demande : elle reste hors de ce régime pour toujours.
+    if (s.type !== 'property' || s.sentAt || s.customKind) return;
     s.sentAt = now;
     s.relancedAt = null;
   });
@@ -2083,9 +2096,16 @@ function renderBuyerForm() {
    décrit le même objet, donc se rend pareil (loi de similarité). */
 function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, isFirst = false, isLast = false } = {}) {
   const actionable = variant === 'builder';
+  // Une adresse personnalisée (Point de départ, Visite, Pause, Restaurant —
+  // choisis dans son propre formulaire) n'a pas de courtier inscripteur en
+  // face : elle ne demande jamais d'approbation, donc aucun statut, aucune
+  // disponibilité à croiser, aucun compte rendu. Son icône est celle choisie
+  // à la création, pas le glyphe de statut des visites.
+  const arretKind = stop.customKind ? ARRET_KINDS[stop.customKind] : null;
+
   // Seul équivalent tactile et clavier au glisser-déposer : masqués sur
   // desktop (où la poignée suffit), affichés à sa place en mobile.
-  const moveButtons = !actionable || !stopIsDraggable(stop) ? '' : `
+  const moveButtons = !actionable || arretKind || !stopIsDraggable(stop) ? '' : `
         <span class="move-stop-group">
           <button class="btn-icon move-stop-btn" data-move-stop="${stop.id}" data-direction="-1" ${isFirst ? 'disabled' : ''}
             title="Monter dans le tour" aria-label="Monter ${esc(stopShortLabel(stop))} dans le tour">${icon('arrowUp')}</button>
@@ -2106,7 +2126,7 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
   // Rien à simuler tant que la demande n'est pas partie, ni sur un écran qui
   // ne branche pas le simulateur.
   const canSim = actionable && flag('simulateConfirmation') && st !== 'sandbox';
-  const statusChip = !stMeta.label ? ''
+  const statusChip = arretKind || !stMeta.label ? ''
     : canSim
       ? `<button class="stop-flag tone-${stMeta.tone} is-sim" data-sim-status="${stop.id}"
           title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
@@ -2117,16 +2137,16 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
   // si l'heure choisie s'envoie sans détour ou va demander un aller-retour.
   // Une fois la demande envoyée, la réponse du courtier inscripteur prend le
   // relais — les deux ne se superposent jamais sur la même carte.
-  const availTag = actionable && !stop.sentAt ? availabilityTagFor(stop, start) : null;
+  const availTag = !arretKind && actionable && !stop.sentAt ? availabilityTagFor(stop, start) : null;
   const availChip = !availTag ? '' : `<span class="stop-flag tone-${availTag.tone}">${esc(availTag.label)}</span>`;
   // Un compte rendu mis de côté ne se retrouve que si l'arrêt le dit : sans ça,
   // « Visité » couvre autant celui qui est parti chez le vendeur que celui qui
   // attend encore, et le courtier n'a rien pour trier après coup.
-  const reportChip = !stop.visited ? ''
+  const reportChip = arretKind || !stop.visited ? ''
     : reportPending
       ? `<span class="stop-flag tone-warn">${icon('star')} Compte rendu à envoyer</span>`
       : `<span class="stop-flag tone-ok">${icon('star')} Visité</span>`;
-  const extChip = !stop.external ? ''
+  const extChip = arretKind || !stop.external ? ''
     : `<span class="stop-flag tone-muted" title="Hors catalogue : la demande part par courriel au courtier inscripteur, sans créer de fiche.">Hors catalogue</span>`;
   // Sur la carte, seul le statut compte : on y réorganise un trajet, pas un
   // compte rendu. Mais le statut, lui, y est indispensable — c'est lui qui dit
@@ -2140,13 +2160,17 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
   return `
     <div class="stop-card${sameSlot ? ' same-slot' : ''}${stopIsDraggable(stop) ? '' : ' is-pinned'}" draggable="${stopIsDraggable(stop)}" data-stop-id="${stop.id}">
       <span class="drag-handle" ${pinnedTitle}>${icon('drag')}</span>
-      <div class="stop-icon">${stopGlyph(st)}</div>
+      <div class="stop-icon${arretKind ? ' arret' : ''}">${arretKind ? icon(arretKind.icon) : stopGlyph(st)}</div>
       <div class="stop-body">
         <p class="stop-address">${esc(stop.address)}</p>
         <p class="stop-meta">${minutesToLabel(start)} – ${minutesToLabel(start + stop.duration)}</p>
         ${flags ? `<div class="stop-flags">${flags}</div>` : ''}
       </div>
-      ${!actionable ? '' : `
+      ${!actionable ? '' : arretKind ? `
+      <div class="stop-actions">
+        <button class="btn-icon" data-edit-arret="${stop.id}" title="Modifier l'adresse" aria-label="Modifier l'adresse ${esc(stop.address)}">${icon('pencil')}</button>
+        <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer du tour" aria-label="Retirer ${esc(stop.address)} du tour">${icon('trash')}</button>
+      </div>` : `
       <div class="stop-actions">
         ${moveButtons}
         <!-- Le crochet quitte la ligne d'adresse : un contrôle logé dans un
@@ -2959,7 +2983,9 @@ function renderVisitRequestModal() {
 // tour. La liste est donc cochable, tout coché par défaut — le cas courant
 // reste un clic, le cas partiel reste possible.
 function renderSendRequestsModal() {
-  const pending = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt);
+  // Une adresse personnalisée n'a pas de courtier inscripteur à qui envoyer
+  // une demande : elle n'apparaît jamais dans cette liste.
+  const pending = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt && !s.customKind);
   const chosen = state.sendSelection || [];
   const n = chosen.length;
   // Nommer l'acheteur n'est pas vouloir le prévenir. Tant qu'aucune visite
@@ -3168,6 +3194,19 @@ const DEST_TABS = [
   { id: 'arret', label: 'Adresse personnalisée', icon: 'plus' },
 ];
 
+// Le type d'une adresse personnalisée n'est qu'une étiquette pour la
+// distinguer dans son propre formulaire (maquette Figma 5757:11154) : il ne
+// touche pas au modèle de l'arrêt ni à son glyphe sur la carte, et ne
+// ressuscite donc pas les notions de trajet ou de pause retirées ailleurs —
+// « Point de départ » et « Pause » n'y sont plus qu'un nom et une icône.
+const ARRET_KIND_ORDER = ['depart', 'visite', 'pause', 'restaurant'];
+const ARRET_KINDS = {
+  depart: { label: 'Point de départ', icon: 'mapPinOutline' },
+  visite: { label: 'Visite', icon: 'home' },
+  pause: { label: 'Pause', icon: 'pauseBars' },
+  restaurant: { label: 'Restaurant', icon: 'restaurant' },
+};
+
 // MLS search and Panier come from the platform's MLS integration; ImmoContact
 // can run the tour builder without them.
 function destTabs() {
@@ -3176,13 +3215,26 @@ function destTabs() {
 function defaultDestTab() {
   return flag('mlsCart') ? 'cart' : 'nom';
 }
+// Une adresse personnalisée repart de zéro à chaque ouverture de l'onglet :
+// rouvrir sur le type ou l'heure d'une saisie précédente, déjà abandonnée,
+// serait plus surprenant qu'utile.
+function resetArretForm() {
+  state.destModalArretKind = null;
+  state.destModalArretKindOpen = false;
+  state.destModalArretFrom = null;
+  state.destModalArretDuration = null;
+}
 
 function renderDestinationModal() {
   const draft = state.draft;
   const addedMls = new Set(draft.stops.filter(s => s.mls).map(s => s.mls));
+  // Modifier une adresse personnalisée revient sur ce même formulaire, mais
+  // seul : basculer vers « Nom » ou « Adresse » n'aurait pas de sens pour une
+  // étape déjà là, donc les autres onglets disparaissent le temps de l'édition.
+  const editingArret = !!state.modal.arretEditId;
   const tabs = destTabs();
   // The active tab can become hidden if the mlsCart flag is switched off while open.
-  const tab = tabs.some(t => t.id === state.destModalTab) ? state.destModalTab : tabs[0].id;
+  const tab = editingArret ? 'arret' : (tabs.some(t => t.id === state.destModalTab) ? state.destModalTab : tabs[0].id);
   const q = state.destModalSearch.trim().toLowerCase();
 
   let body = '';
@@ -3239,23 +3291,69 @@ function renderDestinationModal() {
       </div>
     `;
   } else if (tab === 'arret') {
+    // Rien n'est présélectionné : le type comme l'heure restent au choix du
+    // courtier plutôt que de lui imposer une valeur avant même qu'il ait
+    // touché au formulaire (maquette Figma 5757:4515 — champs vides tant
+    // qu'on ne leur a rien dit).
+    const from = state.destModalArretFrom;
+    const duration = state.destModalArretDuration;
+    const kind = state.destModalArretKind;
+    const kindOpen = state.destModalArretKindOpen;
+    const kindLabel = "Choisir votre type d'adresse";
+    const fromOptions = `<option value="" disabled hidden ${from === null ? 'selected' : ''}>Choisir l'heure</option>` +
+      TIME_OPTIONS.map(t => `<option value="${timeToMinutes(t)}" ${timeToMinutes(t) === from ? 'selected' : ''}>${t}</option>`).join('');
+    const durationOptions = `<option value="" disabled hidden ${duration === null ? 'selected' : ''}>Choisir la durée</option>` +
+      [15, 30].map(d => {
+        const label = from === null ? `${d} minutes` : minutesToLabel(from + d).replace('h', ':');
+        return `<option value="${d}" ${d === duration ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+
     body = `
       <div class="field">
-        <label class="field-label" for="stop-name">Nom de l'arrêt</label>
-        <input class="input" id="stop-name" placeholder="Ex: Dîner avec le client">
+        <div class="search-bar" style="margin-bottom:0;">
+          <input type="text" class="input" id="arret-address" autocomplete="off"
+            placeholder="Entrez l'adresse..." value="${esc(state.destModalPrefillAddress)}">
+          ${icon('search')}
+        </div>
       </div>
       <div class="field">
-        <label class="field-label" for="stop-address">Adresse</label>
-        <input class="input" id="stop-address" placeholder="Ex: 1250 Rue Sainte-Catherine, Montréal" value="${esc(state.destModalPrefillAddress)}">
+        <div class="arret-kind-select${kindOpen ? ' is-open' : ''}">
+          <button type="button" class="arret-kind-trigger${kind ? '' : ' is-placeholder'}" id="arret-kind-trigger"
+            aria-haspopup="listbox" aria-expanded="${kindOpen}" aria-label="${kindLabel}">
+            <span class="arret-kind-current">
+              ${kind ? `<span class="arret-kind-icon">${icon(ARRET_KINDS[kind].icon)}</span> ${esc(ARRET_KINDS[kind].label)}` : kindLabel}
+            </span>
+            ${icon(kindOpen ? 'chevronUp' : 'chevronDown')}
+          </button>
+          ${!kindOpen ? '' : `
+            <div class="arret-kind-options" role="listbox" aria-label="${kindLabel}">
+              ${ARRET_KIND_ORDER.map(k => `
+                <button type="button" role="option" aria-selected="${k === kind}"
+                  class="arret-kind-option${k === kind ? ' active' : ''}" data-arret-kind="${k}">
+                  <span class="arret-kind-icon">${icon(ARRET_KINDS[k].icon)}</span> ${esc(ARRET_KINDS[k].label)}
+                </button>`).join('')}
+            </div>`}
+        </div>
       </div>
-      <button class="btn btn-secondary btn-block" id="btn-add-custom-stop">${icon('plus')} Ajouter cet arrêt</button>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label" for="arret-from">De :</label>
+          <select class="input select${from === null ? ' is-placeholder' : ''}" id="arret-from">${fromOptions}</select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="arret-duration">À :</label>
+          <select class="input select${duration === null ? ' is-placeholder' : ''}" id="arret-duration">${durationOptions}</select>
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-block" id="btn-add-custom-stop">${icon(editingArret ? 'check' : 'plus')} ${editingArret ? 'Enregistrer les modifications' : "Ajouter l'adresse"}</button>
     `;
   }
 
   // Insertion depuis un bandeau : on annonce le point d'insertion et on laisse
   // une sortie vers la modification de la visite suivante, qui était l'ancien
-  // comportement du crayon (Nielsen #3 — contrôle et liberté).
-  const anchor = insertAnchor();
+  // comportement du crayon (Nielsen #3 — contrôle et liberté). Sans objet en
+  // édition d'une adresse personnalisée : il n'y a rien à insérer.
+  const anchor = editingArret ? null : insertAnchor();
   const insertHint = !anchor ? '' : `
     <div class="insert-hint">${icon('info')}
       <span>La nouvelle étape sera insérée <strong>avant</strong> ${esc(stopShortLabel(anchor))}.</span>
@@ -3269,15 +3367,16 @@ function renderDestinationModal() {
   return `
     <div class="modal-overlay" id="modal-overlay">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-        <div class="modal-head"><h2 id="modal-title">${anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
+        <div class="modal-head"><h2 id="modal-title">${editingArret ? 'Modifier l\'adresse personnalisée' : anchor ? 'Insérer une étape' : 'Recherche par :'}</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
         <div class="modal-body">
+          ${editingArret ? '' : `
           <div class="dest-tabs" role="tablist">
             ${tabs.map(t => `
               <button type="button" role="tab" aria-selected="${tab === t.id}" class="dest-tab ${tab === t.id ? 'active' : ''}" data-dest-tab="${t.id}">
                 ${icon(t.icon)} ${esc(t.label)}
                 ${t.id === 'cart' && mlsCart.length ? `<span class="tab-badge">${mlsCart.length}</span>` : ''}
               </button>`).join('')}
-          </div>
+          </div>`}
           ${insertHint}
           ${body}
         </div>
@@ -3454,6 +3553,21 @@ function openVisitEditor(stop) {
     callback: stop.callback || '',
     prevDestModal: null,
   };
+  render();
+}
+
+// Seul point d'entrée pour modifier une adresse personnalisée : le même
+// formulaire qui l'a créée, prérempli — pas la « Demande de visite », qui
+// suppose un courtier inscripteur à qui répondre.
+function openArretEditor(stop) {
+  state.modal = { type: 'destination', initialStops: state.draft.stops.length, arretEditId: stop.id };
+  state.destModalTab = 'arret';
+  state.destModalSearch = '';
+  state.destModalPrefillAddress = stop.address;
+  state.destModalArretKind = stop.customKind || null;
+  state.destModalArretKindOpen = false;
+  state.destModalArretFrom = stop.lockedStart ? timeToMinutes(stop.lockedStart) : null;
+  state.destModalArretDuration = stop.lockedStart ? stop.duration : null;
   render();
 }
 
@@ -3760,6 +3874,7 @@ function bindBuilderEvents() {
     state.modal = { type: 'destination', initialStops: state.draft.stops.length };
     state.destModalTab = defaultDestTab();
     state.destModalSearch = '';
+    resetArretForm();
     render();
   };
   const addBtn1 = document.getElementById('btn-add-destination');
@@ -3778,6 +3893,12 @@ function bindBuilderEvents() {
     el.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-edit-stop'));
       if (stop) openVisitEditor(stop);
+    };
+  });
+  document.querySelectorAll('[data-edit-arret]').forEach(el => {
+    el.onclick = () => {
+      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-edit-arret'));
+      if (stop) openArretEditor(stop);
     };
   });
   const slotAction = (attr, fn) => document.querySelectorAll(`[${attr}]`).forEach(el => {
@@ -3800,6 +3921,7 @@ function bindBuilderEvents() {
       state.destModalTab = defaultDestTab();
       state.destModalSearch = '';
       state.destModalPrefillAddress = '';
+      resetArretForm();
       render();
     };
   });
@@ -3910,7 +4032,7 @@ function bindBuilderEvents() {
   if (sendBtn) sendBtn.onclick = () => {
     // Tout est coché d'avance : envoyer l'ensemble reste un clic, choisir
     // devient possible sans devenir obligatoire.
-    state.sendSelection = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt).map(s => s.id);
+    state.sendSelection = state.draft.stops.filter(s => s.type === 'property' && !s.sentAt && !s.customKind).map(s => s.id);
     state.modal = { type: 'sendRequests' };
     render();
   };
@@ -4724,7 +4846,13 @@ function bindVisitRequestModalEvents() {
 
 function bindDestinationModalEvents() {
   document.querySelectorAll('[data-dest-tab]').forEach(el => {
-    el.onclick = () => { state.destModalTab = el.getAttribute('data-dest-tab'); state.destModalSearch = ''; state.destModalPrefillAddress = ''; render(); };
+    el.onclick = () => {
+      state.destModalTab = el.getAttribute('data-dest-tab');
+      state.destModalSearch = '';
+      state.destModalPrefillAddress = '';
+      resetArretForm();
+      render();
+    };
   });
   // Une adresse hors catalogue passe par la même demande de visite qu'une fiche
   // du catalogue : l'adresse est déjà complète, seul le courtier inscripteur
@@ -4748,6 +4876,7 @@ function bindDestinationModalEvents() {
     state.destModalPrefillAddress = state.destModalTab === 'adresse' ? state.destModalSearch : '';
     state.destModalTab = 'arret';
     state.destModalSearch = '';
+    resetArretForm();
     render();
   };
   const search = document.getElementById('dest-search');
@@ -4797,13 +4926,60 @@ function bindDestinationModalEvents() {
     state.insertBeforeId = null;
     if (stop) openVisitEditor(stop);
   };
+  // Sans ce lien, ouvrir le menu du type (qui redessine tout le modal) perdrait
+  // l'adresse tapée : elle n'existerait que dans le champ, pas dans l'état.
+  const arretAddress = document.getElementById('arret-address');
+  if (arretAddress) arretAddress.oninput = () => { state.destModalPrefillAddress = arretAddress.value; };
+  const kindTrigger = document.getElementById('arret-kind-trigger');
+  if (kindTrigger) kindTrigger.onclick = () => {
+    state.destModalArretKindOpen = !state.destModalArretKindOpen;
+    render();
+  };
+  document.querySelectorAll('[data-arret-kind]').forEach(el => {
+    el.onclick = () => {
+      state.destModalArretKind = el.getAttribute('data-arret-kind');
+      state.destModalArretKindOpen = false;
+      render();
+    };
+  });
+  const arretFrom = document.getElementById('arret-from');
+  if (arretFrom) arretFrom.onchange = () => { state.destModalArretFrom = +arretFrom.value; render(); };
+  const arretDuration = document.getElementById('arret-duration');
+  if (arretDuration) arretDuration.onchange = () => { state.destModalArretDuration = +arretDuration.value; render(); };
+
   const addCustom = document.getElementById('btn-add-custom-stop');
   if (addCustom) addCustom.onclick = () => {
-    const name = document.getElementById('stop-name').value.trim();
-    const address = document.getElementById('stop-address').value.trim();
+    const address = document.getElementById('arret-address').value.trim();
     if (!address) return;
-    const inserted = addStopToDraft({ id: uid(), type: 'property', address: name ? `${name} — ${address}` : address, mls: null, status: 'pending', duration: 20, locked: false, visited: false });
+    // L'heure reste facultative : sans elle, l'arrêt prend simplement sa
+    // place dans l'ordre du tour, comme n'importe quelle autre destination
+    // qu'on n'a pas encore fixée.
+    const from = state.destModalArretFrom;
+    const fields = {
+      address,
+      customKind: state.destModalArretKind || 'visite',
+      duration: state.destModalArretDuration ?? 30,
+      locked: from !== null,
+      lockedStart: from !== null ? minutesToLabel(from).replace('h', ':') : null,
+    };
+    const editId = state.modal.arretEditId;
+    if (editId) {
+      const stop = state.draft.stops.find(s => s.id === editId);
+      if (stop) {
+        Object.assign(stop, fields);
+        markDirtyIfSent();
+      }
+      resetArretForm();
+      closeModal();
+      if (stop) showToast(`${stopShortLabel(stop)} mis à jour.`, 'success');
+      return;
+    }
+    const inserted = addStopToDraft({
+      id: uid(), type: 'property', mls: null, status: 'pending', visited: false,
+      ...fields,
+    });
     markDirtyIfSent();
+    resetArretForm();
     closeModal();
     if (inserted) showToast(`Arrêt inséré avant ${stopShortLabel(inserted)}.`, 'success');
   };
