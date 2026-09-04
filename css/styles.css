@@ -546,7 +546,6 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
 }
 .stop-answer svg { width: 16px; height: 16px; flex-shrink: 0; }
 .stop-answer .banner-text { flex: 1; min-width: 180px; }
-.stop-answer.warn { background: var(--attention-bg); border-color: var(--attention); color: #8a5a05; }
 .stop-answer.danger { background: var(--rouge-10); border-color: var(--rouge-principal); color: var(--rouge-dark); }
 .stop-answer.muted { background: var(--neutre-surface); border-color: var(--texte-secondaire); color: var(--texte-secondaire); }
 .btn-inline {
@@ -703,7 +702,7 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
    La maquette empile ses blocs à 26 px et sépare chaque libellé de son contrôle
    par 5 px. Portée limitée à .tour-head : elle ne décrit que cet écran, et les
    classes .field / .field-label / .input servent partout ailleurs. */
-.tour-head { display: flex; flex-direction: column; gap: 26px; }
+.tour-head { display: flex; flex-direction: column; gap: 26px; margin-bottom: 20px; }
 .tour-head .field { margin-bottom: 0; }
 .tour-head .field-label { font-size: 14px; font-weight: 500; margin-bottom: 5px; }
 /* Le libellé de l'acheteur porte son propre style dans la maquette : 12 px en
@@ -790,9 +789,6 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
 .send-row-address { font-size: 14px; font-weight: 600; color: var(--texte-principal); }
 .send-row-meta { font-size: 12.5px; color: var(--texte-secondaire); }
 
-.stop-icon.pause { background: var(--bleu-action-10); }
-.stop-icon.pause svg { color: var(--bleu-secondaire); }
-
 .stop-body { flex: 1; min-width: 0; }
 .stop-address { font-size: 14.5px; font-weight: 700; margin: 0 0 2px; }
 .stop-meta { font-size: 13px; color: var(--texte-secondaire); margin: 0; }
@@ -830,6 +826,7 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
 .stop-flag svg { width: 12px; height: 12px; }
 .stop-flag.tone-ok { background: var(--succes-bg); color: #17792a; }
 .stop-flag.tone-pending, .stop-flag.tone-warn { background: var(--attention-bg); color: #8a5a05; }
+.stop-flag.tone-info { background: var(--bleu-action-10); color: var(--bleu-action-dark); }
 .stop-flag.tone-danger { background: var(--rouge-10); color: var(--rouge-dark); }
 .stop-flag.tone-muted { background: var(--neutre-surface); color: var(--texte-secondaire); }
 /* Contrôle de démo : la pastille devient cliquable pour jouer la réponse du
@@ -1061,44 +1058,10 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
   padding: 10px; font-size: 14px; font-weight: 500; color: var(--texte-principal); cursor: pointer;
 }
 .option-radio { width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--bordures); flex-shrink: 0; position: relative; background: var(--blanc); }
-.option-chip.selected .option-radio, .origin-opt.is-on .option-radio { border-color: var(--bleu-secondaire); }
-.option-chip.selected .option-radio::after, .origin-opt.is-on .option-radio::after {
+.option-chip.selected .option-radio { border-color: var(--bleu-secondaire); }
+.option-chip.selected .option-radio::after {
   content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--bleu-secondaire);
 }
-
-/* ----- Choix du point de départ ----- */
-.origin-intro { font-size: 13.5px; line-height: 1.5; color: var(--texte-secondaire); margin: 0 0 16px; }
-.origin-opts { display: flex; flex-direction: column; gap: 8px; }
-.origin-opt {
-  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
-  background: var(--blanc); border: 1px solid var(--bordures); border-radius: var(--radius-md);
-  padding: 12px 14px; cursor: pointer; font-family: inherit;
-  /* Un choix sans seconde ligne retombait sous le seuil tactile de 44 px. */
-  min-height: 44px;
-}
-.origin-opt:hover { background: var(--lumiere-principale); }
-.origin-opt:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-.origin-opt.is-on { border-color: var(--bleu-secondaire); background: var(--bleu-action-10); }
-.origin-opt .option-radio { margin-top: 2px; }
-.origin-opt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.origin-opt-title { font-size: 14px; font-weight: 600; color: var(--texte-principal); }
-.origin-opt-sub { font-size: 12.5px; color: var(--texte-secondaire); }
-
-/* Le champ est en retrait sous son choix : l'indentation dit qu'il en dépend
-   plutôt que d'être un quatrième item de la liste (loi de proximité). */
-.origin-custom { padding: 4px 0 4px 25px; }
-.origin-custom .field-label { margin-bottom: 6px; }
-.origin-sugs { margin-top: 8px; border: 1px solid var(--bordures); border-radius: var(--radius-md); overflow: hidden; }
-.origin-sug {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  min-height: 44px; padding: 10px 12px; background: var(--blanc); border: none;
-  border-bottom: 1px solid var(--bordures); cursor: pointer;
-  font-family: inherit; font-size: 13.5px; color: var(--texte-principal);
-}
-.origin-sug:last-child { border-bottom: none; }
-.origin-sug:hover { background: var(--lumiere-principale); }
-.origin-sug:focus-visible { outline: var(--focus-ring); outline-offset: calc(var(--focus-offset) * -1); }
-.origin-sug svg { width: 15px; height: 15px; color: var(--bleu-secondaire); flex-shrink: 0; }
 
 .callback-chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .callback-chip {
@@ -1165,34 +1128,6 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
   font-size: 13px; font-weight: 700;
   border: 2px solid var(--blanc); box-shadow: var(--shadow-base);
 }
-/* Note de départ, en tête de la liste des arrêts. Elle n'est pas un arrêt : pas
-   de carte, pas de poignée, pas d'actions — une ligne qui répond à « je pars à
-   quelle heure ? ». Le liseré vert la rattache au repère de départ sur la carte. */
-.departure-note {
-  display: flex; align-items: flex-start; gap: 10px;
-  border-left: 4px solid var(--succes); border-radius: var(--radius-md);
-  background: var(--succes-bg); padding: 10px 14px; margin-bottom: 10px;
-}
-.departure-icon { display: flex; color: #17792a; flex-shrink: 0; margin-top: 2px; }
-.departure-icon svg { width: 16px; height: 16px; }
-.departure-text { font-size: 13.5px; line-height: 1.45; color: var(--texte-secondaire); flex: 1; min-width: 0; }
-.departure-text strong { color: #17792a; }
-/* La puce n'était stylée que dans .stop-meta : ici elle collait aux deux mots. */
-.departure-text .dot { margin: 0 5px; }
-
-/* Sans point de départ, il n'y a ni trajet ni heure à annoncer : le vert
-   « on est sur la route » deviendrait faux. Teinte neutre, glyphe de lieu, et la
-   même commande — c'est le seul endroit d'où le départ se définit. */
-.departure-note.is-none { border-left-color: #A9B2C8; background: var(--neutre-surface); }
-.departure-note.is-none .departure-icon { color: var(--texte-secondaire); }
-.departure-note.is-none .departure-text strong { color: var(--texte-principal); }
-
-.departure-edit { flex-shrink: 0; align-self: flex-start; }
-
-/* Le départ n'est pas une étape numérotée : il porte un pictogramme, pas un
-   chiffre, et se distingue par la forme autant que par la couleur. */
-.tour-pin.is-start { background: var(--succes); border-radius: var(--radius-md); }
-.tour-pin.is-start svg { width: 15px; height: 15px; }
 
 /* Repère de direction posé sur le tracé, orienté au cap du segment. */
 .route-arrow-wrap { background: none; border: none; }
@@ -1225,11 +1160,11 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
   display: flex; flex-direction: column; gap: 10px;
   margin-bottom: 10px;
 }
-/* Carte au centre, chiffres en légende dessous : c'est l'équilibre que donne la
-   maquette. L'entête ne garde que le départ et la bascule, tous deux d'une seule
-   ligne, donc centrés l'un sur l'autre. */
-.rss-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.rss-head .start-info { flex: 1; min-width: 0; }
+/* Sans point de départ à afficher, l'entête ne porte plus que les mesures et
+   la bascule de la carte : les deux tiennent sur une seule ligne, alignées
+   plutôt qu'empilées comme quand la ligne de départ leur disputait la place. */
+.rss-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rss-head .stats-row { flex: 1; min-width: 0; }
 
 .stats-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .stat-item { font-size: 15px; color: var(--texte-secondaire); white-space: nowrap; }
@@ -1241,22 +1176,6 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
    elle nuance les chiffres, elle n'en est pas un de plus. */
 .stat-note { font-size: 15px; font-style: italic; color: var(--texte-secondaire); }
 
-/* Bloc et non rangée de flex : la commande d'édition vit dans la phrase, donc
-   elle suit la dernière ligne du texte au lieu de s'orpheliner sous l'adresse
-   quand celle-ci passe à la ligne — ce qui arrivait au doigt. */
-.start-info { display: block; }
-/* Pastille en ligne dans le texte et non frère de flex : sinon elle se retrouve
-   seule sur sa ligne dès que l'adresse passe à la ligne. */
-.start-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--succes); margin-right: 8px; vertical-align: middle;
-}
-.start-dot.is-none { background: #A9B2C8; }
-.start-text { font-size: 14px; color: var(--texte-secondaire); }
-.start-text strong { font-weight: 600; color: var(--texte-principal); }
-.start-text .dot { margin: 0 5px; }
-.start-text .banner-edit-btn { vertical-align: middle; margin-left: 2px; }
-.start-text .btn-inline { vertical-align: middle; margin-left: 6px; }
 /* Ni contour ni fond : c'est ce que donne la maquette (5551:2192), un libellé et
    son chevron. Le bouton ne reprend donc pas .btn-inline, sinon il faudrait en
    annuler la moitié des propriétés.
@@ -1298,23 +1217,12 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
 .contact-pane { width: 100%; }
 .form-actions { display: flex; flex-direction: column; gap: 20px; width: 300px; }
 
-/* Barre d'outils de la liste : créer d'abord, chercher ensuite. Le bouton est
-   écrit avant le champ dans le DOM, et l'ordre visuel le suit aux deux tailles —
-   à gauche du champ en ligne, au-dessus de lui en colonne. Plus aucun écart entre
-   l'ordre de l'écran et l'ordre de tabulation, à aucun palier (WCAG 2.4.3).
-
-   Le champ prend la place restante et le bouton garde sa largeur : c'est le champ
-   qui doit s'étirer quand la fenêtre change, pas le libellé de l'action.
-
-   Le bouton reste primaire : c'est la seule action primaire de l'écran, son poids
-   se règle par la largeur, pas en le dégradant en contour — un bouton en contour
-   posé près d'un champ de recherche se lirait comme un filtre. */
-.list-toolbar {
-  display: flex; align-items: center;
-  gap: 16px; margin-bottom: 24px;
-}
-.list-toolbar .search-bar { flex: 1; min-width: 0; margin-bottom: 0; }
-.list-toolbar .btn { flex-shrink: 0; }
+/* Créer clôt la liste plutôt que de l'ouvrir : l'action suit ce sur quoi elle
+   porte (la liste déjà là), au lieu de le précéder — sur la liste des tours
+   comme sur celle des propriétés. Plafonnée à 300px et centrée en web, comme
+   les autres colonnes d'action de l'app (`.form-actions`) ; pleine largeur au
+   doigt, où la cible large l'emporte (loi de Fitts). */
+.page-create-btn { margin: 28px auto 0; max-width: 300px; }
 
 /* ---------- Mes propriétés (Figma 1655:6091) ---------- */
 
@@ -1629,14 +1537,7 @@ body[data-screen="propertyAvailability"] .topbar-back { display: inline-flex; }
   .rss-head { flex-direction: column; }
   .rss-toggle { align-self: flex-end; min-height: 44px; }
   .search-bar { margin-bottom: 16px; }
-  /* À 430 px la colonne fait 398 px : un champ utilisable en réclame ~220 et le
-     bouton ~200. Les deux ne tiennent pas sur une ligne sans réduire le bouton à
-     un « + ». Ils s'empilent donc, chacun sur toute la largeur — la cible la plus
-     sûre au doigt (Fitts). `column` et non `column-reverse` : l'ordre du DOM place
-     déjà le bouton en tête, donc l'ordre visuel et l'ordre de tabulation
-     coïncident exactement là où l'empilement se lit comme une séquence. */
-  .list-toolbar { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 20px; }
-  .list-toolbar .btn { width: 100%; }
+  .page-create-btn { margin-top: 20px; max-width: none; }
 
   /* Forms */
   .form-actions { width: 100%; }

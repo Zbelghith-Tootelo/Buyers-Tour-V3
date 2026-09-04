@@ -22,7 +22,6 @@ const ICONS = {
   x: `<path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>`,
   check: `<path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   drag: { viewBox: '0 0 31 30', content: `<path d="M30.1842 11.4211C30.6348 11.4211 31 11.7863 31 12.2368C31 12.6874 30.6348 13.0526 30.1842 13.0526H0.815789C0.365241 13.0526 0 12.6874 0 12.2368C0 11.7863 0.365241 11.4211 0.815789 11.4211H30.1842Z" fill="currentColor"/><path d="M30.1842 16.3158C30.6348 16.3158 31 16.681 31 17.1316C31 17.5821 30.6348 17.9474 30.1842 17.9474H0.815789C0.365241 17.9474 0 17.5821 0 17.1316C0 16.681 0.365241 16.3158 0.815789 16.3158H30.1842Z" fill="currentColor"/><path d="M14.6336 1.5C15.0185 0.833332 15.9807 0.833334 16.3656 1.5L19.579 7.06579C19.9639 7.73246 19.4828 8.56579 18.713 8.56579H12.2862C11.5164 8.56579 11.0353 7.73246 11.4202 7.06579L14.6336 1.5Z" fill="currentColor"/><path d="M16.3664 27.8684C15.9815 28.5351 15.0193 28.5351 14.6344 27.8684L11.421 22.3026C11.0361 21.636 11.5172 20.8026 12.287 20.8026H18.7138C19.4836 20.8026 19.9647 21.636 19.5798 22.3026L16.3664 27.8684Z" fill="currentColor"/>` },
-  pause: `<rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>`,
   pin: `<path d="M12 21.5s7-6.1 7-11.2A7 7 0 005 10.3c0 5.1 7 11.2 7 11.2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" fill="none"/><circle cx="12" cy="10" r="2.4" fill="currentColor"/>`,
   car: `<path d="M5 17h14M5 17a2 2 0 104 0M15 17a2 2 0 104 0M3 17l1.5-5.5A2 2 0 016.4 10h11.2a2 2 0 011.9 1.5L21 17M6 10l1-4h10l1 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
   warning: `<path d="M12 9v4M12 17h.01M10.3 3.9L2.6 18a1.6 1.6 0 001.4 2.4h16a1.6 1.6 0 001.4-2.4L13.7 3.9a1.6 1.6 0 00-2.8 0z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
@@ -315,6 +314,30 @@ function propertyAvailability(mls) {
   return PROPERTY_AVAILABILITY[mls];
 }
 
+// Le tag qu'un arrêt du bac à sable porte quand rien n'est encore parti : il
+// répond d'avance à « puis-je réserver cette heure sans détour ? », pour
+// épargner l'aller-retour de messagerie que ce calendrier existe déjà pour
+// éviter. `none` couvre autant l'absence de créneau couvrant que l'absence
+// pure et simple de calendrier (hors catalogue) : dans les deux cas, il n'y a
+// rien à consulter, donc rien d'autre à répondre que « ça passe par le
+// courtier ».
+const AVAILABILITY_TAGS = {
+  'visite-libre': { label: 'Visite libre', tone: 'ok' },
+  'pre-approuve': { label: 'Pré-approuvée', tone: 'info' },
+  impossible:     { label: 'Impossible dans cette plage horaire', tone: 'danger' },
+  none:           { label: 'Besoin d\'approbation du courtier', tone: 'warn' },
+};
+function availabilityTagFor(stop, start) {
+  if (stop.external || !stop.mls) return AVAILABILITY_TAGS.none;
+  const end = start + stop.duration;
+  // Un créneau ne « couvre » l'arrêt que s'il le contient en entier : un
+  // chevauchement partiel resterait un faux sans-détour, moins sûr qu'un
+  // aller-retour évité à tort.
+  const covering = propertyAvailability(stop.mls).find(ev =>
+    ev.date === state.draft.date && ev.startMinutes <= start && ev.endMinutes >= end);
+  return AVAILABILITY_TAGS[covering ? covering.type : 'none'];
+}
+
 // Sur ImmoContact, une adresse absente du catalogue reste visitable : le
 // courtier la saisit et la demande part par courriel. Ce jeu de rues simule ce
 // que renverrait un service d'adresses — le prototype n'en appelle aucun, mais
@@ -433,62 +456,10 @@ const osrmLegMinutes = new Map(); // "from>to" -> driving minutes
 const coordKey = c => `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
 const legKey = (a, b) => `${coordKey(a)}>${coordKey(b)}`;
 
-/* ----- Point de départ -----
-   Où commence le tour ? Seul le courtier le sait, et la réponse change d'un jour
-   à l'autre : il part de là où il se trouve, ou d'une adresse convenue, ou bien
-   il retrouve son acheteur devant la première porte. Les trois sont des journées
-   réelles, donc les trois sont des choix — pas un réglage codé en dur.
-
-   Ce point ne décale aucune heure de visite : ce sont des engagements pris
-   auprès des courtiers inscripteurs, et un trajet d'approche ne les réécrit pas.
-   Il décide du premier segment tracé, des totaux, de l'ancre de l'optimisation,
-   et de l'heure à laquelle il faut partir.
-
-   Position simulée : le prototype ne demande pas l'autorisation de
-   géolocalisation du navigateur. Chaque point a la forme d'un arrêt pour que
-   tout le reste — coordsFor, routage, distances, tracé — le traite sans cas
-   particulier. */
-const BROKER_POSITION = {
-  id: 'depart',
-  type: 'start',
-  label: 'Ma position',
-  address: '1250 Boulevard René-Lévesque Ouest, Montréal, QC H3B 4W8',
-  lat: 45.4966,
-  lng: -73.5710,
-};
-
-// Trois natures de départ, pas trois variantes de la même : d'où je suis, d'une
-// adresse que je nomme, ou de nulle part avant la première visite.
-const ORIGIN_MODES = [
-  { id: 'position', label: 'Ma position', sub: BROKER_POSITION.address },
-  { id: 'address', label: 'Une autre adresse', sub: 'Bureau, domicile, point de rendez-vous…' },
-  { id: 'first', label: 'La première visite', sub: 'Aucun trajet d\'approche compté' },
-];
-
-// « Ma position » par défaut : c'est le cas courant, et c'était déjà le
-// comportement avant que le choix existe — aucun tour ne change de sens.
-function newOrigin() { return { mode: 'position', address: '' }; }
-
-// Le point effectif, en forme d'arrêt, ou null quand le tour commence à la
-// première visite : il n'y a alors rien avant elle, ni segment ni repère.
-function originPoint(origin) {
-  if (!origin || origin.mode === 'first') return null;
-  if (origin.mode === 'address') {
-    const address = (origin.address || '').trim();
-    // Une adresse vide ne désigne aucun lieu : plutôt que d'inventer des
-    // coordonnées, on retombe sur « commence à la première visite ».
-    if (!address) return null;
-    return { id: 'depart', type: 'start', label: 'Départ', address };
-  }
-  return BROKER_POSITION;
-}
-
-// Les points du trajet, départ compris. Sous une propriété il n'y a pas de
-// trajet à tracer, donc rien à préfixer.
-function routePoints(props, origin) {
-  if (!props.length) return [];
-  const start = originPoint(origin);
-  return start ? [start, ...props] : props.slice();
+// Le tour commence à la première visite : plus de point de départ à choisir,
+// donc rien à préfixer avant les propriétés.
+function routePoints(props) {
+  return props.slice();
 }
 
 function routeSignature(props) {
@@ -571,13 +542,12 @@ function normalizeParallel(draft) {
 // réordonnancement — aucune heure de visite déjà fixée par le courtier
 // (« Modifier la visite ») ne bouge : `computeSchedule` lit `lockedStart` quelle
 // que soit la position de l'arrêt dans la liste.
-function optimizeByGeography(props, origin) {
+function optimizeByGeography(props) {
   if (props.length < 2) return props.slice();
   const remaining = props.slice();
   const route = [];
-  const start = originPoint(origin);
-  if (!start) route.push(remaining.shift());
-  let from = coordsFor(start || route[0]);
+  route.push(remaining.shift());
+  let from = coordsFor(route[0]);
   while (remaining.length) {
     let bestIdx = 0, bestKm = Infinity;
     remaining.forEach((s, i) => {
@@ -645,10 +615,6 @@ function makeStop(address, mls, opts = {}) {
     relancedAt: null,
   };
 }
-function makePause(duration = 30) {
-  return { id: uid(), type: 'pause', duration };
-}
-
 /* ---------------- Statuts ---------------- */
 
 // Une visite ne se résume pas à « demandée / confirmée » : le courtier
@@ -778,7 +744,6 @@ function addStopToDraft(stop) {
 }
 function stopShortLabel(stop) {
   if (!stop) return '';
-  if (stop.type === 'pause') return `la pause de ${stop.duration} min`;
   return stop.address.split(',')[0];
 }
 
@@ -791,7 +756,6 @@ function seedTours() {
       id: 't1', buyerId: 'b1', date: todayPlus(2), time: '15:00', sentAt: Date.now() - 100000, sharedAt: Date.now() - 95000,
       stops: [
         makeStop('500 Rue D\'Iberville, Montréal, QC H2H 2S6', '18234567', { status: 'confirmed', lockedStart: '15:00', sentAt: Date.now() - 100000 }),
-        makePause(30),
         makeStop('515 Boul. Lacombe, Repentigny, QC J6A 1E5', '18234599', { status: 'confirmed', lockedStart: '16:00', sentAt: Date.now() - 100000 }),
         makeStop('214 Rue des Oranges, Montréal, QC H2H 2S6', '18234612', { status: 'confirmed', lockedStart: '17:00', sentAt: Date.now() - 100000 }),
       ],
@@ -939,7 +903,6 @@ const state = {
   destModalPrefillAddress: '',
   newProperty: null,        // formulaire « Ajouter une propriété inexistante »
   newPropertyTouched: false, // les champs manquants ne sont signalés qu'après un premier envoi
-  originDraft: null,        // choix du point de départ en cours : { mode, address }
   mapOpen: false,           // panneau de trajet déplié — replié par défaut, la carte reste un choix
   insertBeforeId: null,     // id de l'étape avant laquelle insérer la prochaine destination
   dragStopId: null,
@@ -999,7 +962,6 @@ function commitDraft(patch = {}) {
     buyerId: state.draft.buyer ? state.draft.buyer.id : null,
     date: state.draft.date,
     time: state.draft.time,
-    origin: state.draft.origin,
     stops: state.draft.stops,
   };
   const existing = currentTour();
@@ -1037,14 +999,6 @@ function setStopStatus(stop, status) {
     if (row) stop.lockedStart = minutesToLabel(row.start).replace('h', ':');
   }
 }
-// Accepter la contre-proposition, c'est confirmer la visite à l'heure que le
-// courtier a proposée — pas à celle qu'on avait demandée.
-function acceptProposedStart(stop) {
-  const proposed = stop.proposedStart;
-  setStopStatus(stop, 'confirmed');
-  if (proposed) { stop.lockedStart = proposed; stop.locked = true; }
-}
-
 /* ----- Actions sur un créneau partagé ----- */
 
 // Grouper deux visites dans le même créneau change l'heure demandée à la
@@ -1089,9 +1043,8 @@ function ackSameSlot(stop) {
 // aucune heure déjà demandée ne bouge (elle est fixée par le courtier, pas
 // par la position dans la liste), donc on applique directement.
 function optimizeDraftStops() {
-  const pauses = state.draft.stops.filter(s => s.type === 'pause');
   const props = state.draft.stops.filter(s => s.type === 'property');
-  const reordered = [...optimizeByGeography(props, state.draft.origin), ...pauses];
+  const reordered = optimizeByGeography(props);
   const unchanged = reordered.map(s => s.id).join(',') === state.draft.stops.map(s => s.id).join(',');
   if (unchanged) { showToast('Le tour suit déjà cet ordre.'); return; }
   state.draft.stops = reordered;
@@ -1193,7 +1146,7 @@ function saveDraftToTour(notify, notifyBuyer = false) {
 // l'enchaînement des visites qui décide de sa fin, pas une contrainte saisie
 // d'avance.
 function newDraft(buyer = null) {
-  return { buyer, date: todayPlus(3), time: '14:00', origin: newOrigin(), stops: [] };
+  return { buyer, date: todayPlus(3), time: '14:00', stops: [] };
 }
 
 // Fin réelle du tour, telle qu'annoncée à l'acheteur au moment du partage.
@@ -1224,32 +1177,24 @@ function computeSchedule(draft) {
     const prev = draft.stops[i - 1];
     // Créneau partagé : la visite démarre avec la précédente au lieu de la
     // suivre.
-    const sharesSlot = !!(stop.type === 'property' && stop.parallel
-      && prev && prev.type === 'property' && lastStart !== null);
+    const sharesSlot = !!(stop.parallel && prev && lastStart !== null);
     let start;
-    if (stop.type === 'pause') {
-      // Même palier que les visites : une liste où seule la pause tombe à 15h42
-      // se lit comme une erreur d'arrondi.
-      start = ceilToSlot(cursor);
+    const slotEnd = cursor;
+    if (sharesSlot) cursor = lastStart;
+    if (stop.locked && stop.lockedStart) {
+      start = timeToMinutes(stop.lockedStart);
       cursor = start + stop.duration;
     } else {
-      const slotEnd = cursor;
-      if (sharesSlot) cursor = lastStart;
-      if (stop.locked && stop.lockedStart) {
-        start = timeToMinutes(stop.lockedStart);
-        cursor = start + stop.duration;
-      } else {
-        // Une heure de visite se demande au quart d'heure : c'est le palier sur
-        // lequel les courtiers s'entendent, et les sélecteurs d'heure de
-        // l'application n'en proposent pas d'autre.
-        start = ceilToSlot(cursor);
-        cursor = start + stop.duration;
-      }
-      // La visite la plus longue du créneau décide de la suite du tour.
-      if (sharesSlot) cursor = Math.max(cursor, slotEnd);
+      // Une heure de visite se demande au quart d'heure : c'est le palier sur
+      // lequel les courtiers s'entendent, et les sélecteurs d'heure de
+      // l'application n'en proposent pas d'autre.
+      start = ceilToSlot(cursor);
+      cursor = start + stop.duration;
     }
+    // La visite la plus longue du créneau décide de la suite du tour.
+    if (sharesSlot) cursor = Math.max(cursor, slotEnd);
     rows.push({ stop, start, sharesSlot });
-    if (stop.type !== 'pause') lastStart = start;
+    lastStart = start;
   }
   return rows;
 }
@@ -1449,12 +1394,12 @@ function renderPropertiesScreen() {
         </div>`).join('')}</div>`;
 
   return `
-    <button class="btn btn-primary btn-block" id="btn-add-property">${icon('plus')} Ajouter une nouvelle propriété</button>
     <div class="property-tabs" role="tablist" aria-label="Filtrer mes propriétés">
       <button class="${tab === 'active' ? 'active' : ''}" data-property-tab="active" role="tab" aria-selected="${tab === 'active'}">Actives</button>
       <button class="${tab === 'inactive' ? 'active' : ''}" data-property-tab="inactive" role="tab" aria-selected="${tab === 'inactive'}">Inactives</button>
     </div>
     ${rows}
+    <button class="btn btn-primary btn-block page-create-btn" id="btn-add-property">${icon('plus')} Ajouter une nouvelle propriété</button>
   `;
 }
 
@@ -1893,11 +1838,10 @@ function renderListScreen() {
     listHtml = `
       <div class="empty-state">
         <p>${q ? 'Aucun tour ne correspond à votre recherche.' : (state.listTab === 'upcoming' ? 'Aucun tour de visites à venir.' : 'Aucun tour de visites passé.')}</p>
-        ${''/* L'invitation nommait une action sans dire où la trouver : le bouton
-               est maintenant au-dessus de la liste, donc au-dessus de ce message.
-               On le nomme, comme le fait déjà l'état vide du constructeur — plutôt
-               que de répéter le bouton ici, ce qui mettrait deux fois la même
-               action primaire à l'écran. */}
+        ${''/* Le bouton existe déjà plus bas sur l'écran : on le nomme ici,
+               comme le fait déjà l'état vide du constructeur, plutôt que de le
+               répéter, ce qui mettrait deux fois la même action primaire à
+               l'écran. */}
         <p class="empty-sub">${!q
           ? 'Utilisez « Créer un tour de visites » pour commencer.'
           : anonymes
@@ -1939,27 +1883,6 @@ function renderListScreen() {
   }
 
   return `
-    <!-- Barre d'outils de la liste : chercher à gauche, créer à droite. Placé
-         après la liste, le bouton voyait sa position dépendre de la longueur de
-         celle-ci — la seule chose qui varie ici — et passait sous la ligne de
-         flottaison dès une dizaine de tours.
-
-         Créer d'abord, chercher ensuite, aux deux tailles : le bouton à gauche du
-         champ en ligne, au-dessus de lui en colonne. L'ordre du DOM est donc celui
-         de l'écran partout, et l'ordre de tabulation avec — aucun écart à aucun
-         palier (WCAG 2.4.3). -->
-    <div class="list-toolbar">
-      <button class="btn btn-primary" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
-      <div class="search-bar">
-        <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
-             à l'œil. Le nom accessible dit ce que la recherche compare — le nom
-             de l'acheteur, pas une adresse — ce que le texte d'invite ne dit
-             plus dès la première frappe. -->
-        <input type="search" class="input" id="list-search" placeholder="Chercher un tour..."
-          aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
-        ${icon('search')}
-      </div>
-    </div>
     <!-- L'onglet retenu se voyait, mais ne s'annonçait pas : un lecteur d'écran
          lisait « À venir, bouton » sans dire lequel des deux est actif. Ce sont
          deux boutons bascule, d'où aria-pressed — role="tab" exigerait un
@@ -1970,7 +1893,17 @@ function renderListScreen() {
       <button class="${state.listTab === 'past' ? 'active' : ''}" data-tab="past"
         aria-pressed="${state.listTab === 'past'}">Passé</button>
     </div>
+    <div class="search-bar">
+      <!-- Pas de libellé visible ici : la loupe et le texte d'invite suffisent
+           à l'œil. Le nom accessible dit ce que la recherche compare — le nom
+           de l'acheteur, pas une adresse — ce que le texte d'invite ne dit
+           plus dès la première frappe. -->
+      <input type="search" class="input" id="list-search" placeholder="Chercher un tour..."
+        aria-label="Chercher un tour par le nom de l'acheteur" value="${esc(state.listSearch)}">
+      ${icon('search')}
+    </div>
     ${listHtml}
+    <button class="btn btn-primary btn-block page-create-btn" id="btn-create-tour">${icon('plus')} Créer un tour de visites</button>
   `;
 }
 
@@ -2160,24 +2093,6 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
             title="Descendre dans le tour" aria-label="Descendre ${esc(stopShortLabel(stop))} dans le tour">${icon('arrowDown')}</button>
         </span>`;
 
-  if (stop.type === 'pause') {
-    return `
-      <div class="stop-card" draggable="true" data-stop-id="${stop.id}">
-        <span class="drag-handle">${icon('drag')}</span>
-        <div class="stop-icon pause">${icon('pause')}</div>
-        <div class="stop-body">
-          <p class="stop-address">Pause : Durée ${stop.duration} minutes</p>
-          <p class="stop-meta">Débute vers ${minutesToLabel(start)}</p>
-        </div>
-        ${!actionable ? '' : `
-        <div class="stop-actions">
-          ${moveButtons}
-          <button class="btn-icon" data-edit-pause="${stop.id}" title="Modifier la pause" aria-label="Modifier la pause de ${stop.duration} minutes">${icon('pencil')}</button>
-          <button class="btn-icon danger" data-remove-stop="${stop.id}" title="Retirer la pause" aria-label="Retirer du tour la pause de ${stop.duration} minutes">${icon('trash')}</button>
-        </div>`}
-      </div>`;
-  }
-
   const st = effectiveStopStatus(stop);
   const stMeta = STOP_STATUSES[st];
   const reportPending = !!(stop.report && !stop.report.sent);
@@ -2197,6 +2112,13 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
           title="Simuler la réponse du courtier inscripteur — état suivant : ${esc(STOP_STATUSES[nextSt].short)}">
           ${esc(stMeta.label)}${suffix}${icon('sync')}</button>`
       : `<span class="stop-flag tone-${stMeta.tone}">${esc(stMeta.label)}${suffix}</span>`;
+  // Tant que rien n'est parti, ce que dit le calendrier de disponibilité de la
+  // fiche compte plus que le statut (vide) de la demande : c'est lui qui dit
+  // si l'heure choisie s'envoie sans détour ou va demander un aller-retour.
+  // Une fois la demande envoyée, la réponse du courtier inscripteur prend le
+  // relais — les deux ne se superposent jamais sur la même carte.
+  const availTag = actionable && !stop.sentAt ? availabilityTagFor(stop, start) : null;
+  const availChip = !availTag ? '' : `<span class="stop-flag tone-${availTag.tone}">${esc(availTag.label)}</span>`;
   // Un compte rendu mis de côté ne se retrouve que si l'arrêt le dit : sans ça,
   // « Visité » couvre autant celui qui est parti chez le vendeur que celui qui
   // attend encore, et le courtier n'a rien pour trier après coup.
@@ -2209,7 +2131,7 @@ function renderStopCard(stop, start, { variant = 'builder', sameSlot = false, is
   // Sur la carte, seul le statut compte : on y réorganise un trajet, pas un
   // compte rendu. Mais le statut, lui, y est indispensable — c'est lui qui dit
   // quelle étape est en train de tomber.
-  const flags = (actionable ? [statusChip, reportChip, extChip] : [statusChip]).filter(Boolean).join('');
+  const flags = (actionable ? [statusChip, availChip, reportChip, extChip] : [statusChip]).filter(Boolean).join('');
 
   const pinnedTitle = stopIsDraggable(stop) ? '' : `title="Demande envoyée : l'heure de cet arrêt se change par « Éditer »"`;
   const reportTitle = !stop.visited ? 'Faire le compte rendu de visite'
@@ -2264,47 +2186,30 @@ function renderBuilderScreen() {
   };
   const status = tourStatus(liveTour);
   const tally = validationTally(liveTour);
-  const bannerEditTitle = 'Insérer une pause, un arrêt ou une propriété à cet endroit du tour';
+  const bannerEditTitle = 'Insérer un arrêt ou une propriété à cet endroit du tour';
 
   /* ----- Panneau de synthèse du trajet — maquettes Figma 5551:2871 / 5551:2174 -----
      « Afficher sur la carte » cesse d'être un écran à part pour devenir le
-     dépliage de ce panneau : le trajet se lit là où il se compose.
+     dépliage de ce panneau : le trajet se lit là où il se compose. Plus de
+     point de départ à choisir : le tour commence à la première visite, et les
+     mesures partagent la même ligne que le bouton de la carte plutôt que
+     d'empiler deux rangées pour une seule idée (loi de proximité).
 
-     Le panneau absorbe l'ancienne note de départ verte, qui disait trois choses
-     dont deux étaient déjà dites ailleurs — l'adresse de départ, que le panneau
-     porte, et le trajet d'approche, qu'affiche le bandeau au-dessus de la
-     première visite. Ne restait d'unique que l'heure à laquelle partir : elle
-     rejoint les statistiques, dont elle a la nature, un nombre déduit du trajet.
-
-     Pas de panneau sans arrêt : la maquette de l'état vide n'en a pas, et il n'y
-     a ni distance ni départ à annoncer avant la première destination. */
+     Pas de panneau sans arrêt : la maquette de l'état vide n'en a pas, et il
+     n'y a pas de distance à annoncer avant la première destination. */
   const firstProp = rows.find(r => r.stop.type === 'property');
-  const originStart = originPoint(draft.origin);
   const summaryHtml = !firstProp ? '' : (() => {
     const stat = (n, l) => `<span class="stat-item"><strong>${n}</strong> ${l}</span>`;
     const stats = [
       stat(propertyCount, `arrêt${propertyCount > 1 ? 's' : ''}`),
     ];
-    // L'heure de départ tient à la ligne du départ et non aux mesures : elle
-    // appartient au lieu d'où l'on part, et « 14h05 départ » se lirait à l'envers.
-    const heureDepart = originStart
-      ? minutesToLabel(firstProp.start - geoTravelMinutes(coordsFor(originStart), coordsFor(firstProp.stop)))
-      : null;
-
-    const startLine = originStart
-      ? `<span class="start-text"><span class="start-dot"></span>Point de départ,
-           <strong>${esc(originStart.address.split(',')[0])}</strong>
-           <span class="dot">•</span> départ vers ${heureDepart}
-           <button class="banner-edit-btn" id="btn-edit-origin"
-             title="Modifier le point de départ" aria-label="Modifier le point de départ">${icon('pencil')}</button></span>`
-      : `<span class="start-text"><span class="start-dot is-none"></span>Le tour commence à la première visite.
-           <button class="btn-inline" id="btn-edit-origin">Choisir un départ</button></span>`;
 
     // Le routage se déclenche au dépliage seulement : tant que la carte est
     // fermée, les distances de repli suffisent et rien ne part sur le réseau.
-    if (state.mapOpen) ensureRouteGeometry(routePoints(draft.stops.filter(s => s.type === 'property'), draft.origin));
+    const props = draft.stops.filter(s => s.type === 'property');
+    if (state.mapOpen) ensureRouteGeometry(routePoints(props));
     const routeStatus = state.mapOpen
-      ? (routeGeometry.get(routeSignature(routePoints(draft.stops.filter(s => s.type === 'property'), draft.origin))) || {}).status
+      ? (routeGeometry.get(routeSignature(routePoints(props))) || {}).status
       : null;
 
     // La note de tracé prend place au bout des mesures plutôt que sous la carte :
@@ -2316,14 +2221,13 @@ function renderBuilderScreen() {
     return `
       <section class="route-summary-section${state.mapOpen ? ' is-open' : ''}">
         <div class="rss-head">
-          <div class="start-info">${startLine}</div>
+          <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
           <button class="rss-toggle" id="btn-toggle-map"
             aria-expanded="${state.mapOpen}" aria-controls="rss-map">
             Afficher sur la carte ${icon(state.mapOpen ? 'chevronUp' : 'chevronRight')}
           </button>
         </div>
         ${state.mapOpen ? `<div class="rss-map" id="rss-map"><div id="map-slot"></div></div>` : ''}
-        <div class="stats-row">${stats.join('<span class="stat-sep"></span>')}</div>
       </section>`;
   })();
 
@@ -2379,45 +2283,30 @@ function renderBuilderScreen() {
     // à cet écran.
     const card = renderStopCard(stop, start, { variant: 'builder', sameSlot: sharesSlot || opensSlot, isFirst: i === 0, isLast: i === draft.stops.length - 1 });
     let answerHtml = '';
-    if (stop.type !== 'pause') {
-      const st = effectiveStopStatus(stop);
-      // Une réponse qui n'est pas « confirmée » demande un arbitrage. La
-      // décision se prend sous l'arrêt concerné plutôt que dans une liste à
-      // part : elle se lit dans le contexte de l'horaire qu'elle affecte.
-      if (st === 'proposed') {
-        answerHtml = `
-          <div class="stop-answer warn">${icon('sync')}
-            <span class="banner-text">Le courtier propose <strong>${stop.proposedStart ? stop.proposedStart.replace(':', 'h') : 'un autre créneau'}</strong> au lieu de ${minutesToLabel(start)}.</span>
-            <button class="btn-inline" data-accept-proposed="${stop.id}">Accepter</button>
-            <button class="btn-inline ghost" data-keep-request="${stop.id}">Garder ma demande</button>
-          </div>`;
-      } else if (st === 'refused') {
-        // Un refus porte le plus souvent sur l'heure, pas sur la propriété.
-        // Ne proposer que le retrait forçait à supprimer puis recomposer
-        // l'arrêt pour retenter — en lui faisant perdre sa place dans le tour.
-        answerHtml = `
-          <div class="stop-answer danger">${icon('warning')}
-            <span class="banner-text">Le courtier inscripteur a refusé cette visite.</span>
-            <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
-            <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
-          </div>`;
-      } else if (st === 'cancelled') {
-        // L'heure était acquise : on la nomme, parce que c'est elle qui est
-        // perdue et que le reste du tour a été bâti autour.
-        answerHtml = `
-          <div class="stop-answer danger">${icon('warning')}
-            <span class="banner-text">Le courtier inscripteur a annulé cette visite${stop.lockedStart ? `, confirmée pour ${stop.lockedStart.replace(':', 'h')}` : ''}.</span>
-            <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
-            <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
-          </div>`;
-      } else if (st === 'noreply') {
-        answerHtml = `
-          <div class="stop-answer muted">${icon('hourglass')}
-            <span class="banner-text">Sans réponse depuis 48 h.</span>
-            <button class="btn-inline" data-relance-stop="${stop.id}">Relancer</button>
-            <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
-          </div>`;
-      }
+    const st = effectiveStopStatus(stop);
+    // Une réponse qui n'est pas « confirmée » se lit sur la pastille de
+    // l'arrêt (« Autre créneau proposé — 16h15 », « Visite refusée ») :
+    // l'information suffit, et « Modifier la visite » reste la porte
+    // d'entrée pour agir, sans bandeau qui force un choix. Deux régimes
+    // gardent un bandeau parce qu'ils perdent quelque chose de concret
+    // (une confirmation acquise, une réponse) plutôt que de simplement
+    // signaler un état.
+    if (st === 'cancelled') {
+      // L'heure était acquise : on la nomme, parce que c'est elle qui est
+      // perdue et que le reste du tour a été bâti autour.
+      answerHtml = `
+        <div class="stop-answer danger">${icon('warning')}
+          <span class="banner-text">Le courtier inscripteur a annulé cette visite${stop.lockedStart ? `, confirmée pour ${stop.lockedStart.replace(':', 'h')}` : ''}.</span>
+          <button class="btn-inline" data-retry-stop="${stop.id}">Proposer un autre créneau</button>
+          <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
+        </div>`;
+    } else if (st === 'noreply') {
+      answerHtml = `
+        <div class="stop-answer muted">${icon('hourglass')}
+          <span class="banner-text">Sans réponse depuis 48 h.</span>
+          <button class="btn-inline" data-relance-stop="${stop.id}">Relancer</button>
+          <button class="btn-inline ghost" data-remove-stop-inline="${stop.id}">Retirer du tour</button>
+        </div>`;
     }
     return travelHtml + slotHtml + card + answerHtml;
   }).join('');
@@ -2672,8 +2561,6 @@ function renderModal() {
   if (state.modal.type === 'confirmLeave') { root.innerHTML = renderConfirmLeaveModal(); return; }
   if (state.modal.type === 'confirmRemoveStop') { root.innerHTML = renderConfirmRemoveStopModal(); return; }
   if (state.modal.type === 'editBuyer') { root.innerHTML = renderEditBuyerModal(); return; }
-  if (state.modal.type === 'editStop') { root.innerHTML = renderEditStopModal(); return; }
-  if (state.modal.type === 'origin') { root.innerHTML = renderOriginModal(); return; }
   if (state.modal.type === 'availability') { root.innerHTML = renderAvailabilityModal(); return; }
   root.innerHTML = '';
 }
@@ -2682,56 +2569,6 @@ function renderModal() {
 // un lecteur d'écran annonce alors « 2 sur 3 », pas trois boutons sans rapport.
 // Le champ d'adresse n'apparaît que sous le choix qui l'exige : demander une
 // adresse à qui part de sa position serait du bruit (divulgation progressive).
-function renderOriginModal() {
-  const d = state.originDraft;
-  const adresseManquante = d.mode === 'address' && !d.address.trim();
-  // Une suggestion identique à la saisie n'a plus rien à proposer.
-  const sugs = d.mode === 'address'
-    ? addressSuggestions(d.address).filter(s => normalizeText(s.address) !== normalizeText(d.address.trim()))
-    : [];
-  const why = whenBlocked('btn-save-origin', !adresseManquante,
-    'Saisissez l\'adresse de départ, ou choisissez un autre point de départ.');
-
-  const option = (m) => `
-    <button class="origin-opt${d.mode === m.id ? ' is-on' : ''}" data-origin-mode="${m.id}"
-      role="radio" aria-checked="${d.mode === m.id}">
-      <span class="option-radio"></span>
-      <span class="origin-opt-body">
-        <span class="origin-opt-title">${esc(m.label)}</span>
-        ${m.sub ? `<span class="origin-opt-sub">${esc(m.sub)}</span>` : ''}
-      </span>
-    </button>`;
-
-  return `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-        <div class="modal-head"><h2 id="modal-title">Point de départ</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
-        <div class="modal-body">
-          <p class="origin-intro">D'où partez-vous ? Ce point donne l'heure à laquelle il faut partir,
-            le premier trajet sur la carte, et le point d'ancrage de l'optimisation.
-            <strong>Les heures de visite ne changent pas</strong> — ce sont des engagements pris
-            auprès des courtiers inscripteurs.</p>
-          <div class="origin-opts" role="radiogroup" aria-labelledby="modal-title">
-            ${ORIGIN_MODES.map(m => `${option(m)}${m.id === 'address' && d.mode === 'address' ? `
-              <div class="origin-custom">
-                <label class="field-label" for="origin-address">Adresse de départ</label>
-                <input class="input" id="origin-address" value="${esc(d.address)}"
-                  placeholder="Numéro et rue, ville" autocomplete="off">
-                ${sugs.length ? `<div class="origin-sugs">${sugs.map(s => `
-                  <button class="origin-sug" data-origin-sug="${esc(s.address)}">
-                    ${icon('pin')}<span>${esc(s.address)}</span>
-                  </button>`).join('')}</div>` : ''}
-              </div>` : ''}`).join('')}
-          </div>
-        </div>
-        <div class="modal-footer" style="display:flex;gap:10px;">
-          <button class="btn btn-primary" id="btn-save-origin"${why.a}>Enregistrer</button>
-          <button class="btn btn-outline" id="modal-cancel">Annuler</button>
-        </div>${why.n}
-      </div>
-    </div>`;
-}
-
 // Le modal d'édition ne remontre pas Jours/Récurrence : on modifie l'occurrence
 // cliquée, pas la règle qui l'a produite — celle-ci n'a jamais existé en tant
 // que telle, la récurrence n'étant qu'un générateur au moment de la création.
@@ -3328,8 +3165,7 @@ const DEST_TABS = [
   { id: 'adresse', label: 'Adresse', icon: 'mapPinOutline' },
   { id: 'mls', label: 'MLS', icon: 'doc', prefix: '#' },
   { id: 'cart', label: 'Panier', icon: 'cart' },
-  { id: 'arret', label: 'Arrêt', icon: 'plus' },
-  { id: 'pause', label: 'Pause', icon: 'pause' },
+  { id: 'arret', label: 'Adresse personnalisée', icon: 'plus' },
 ];
 
 // MLS search and Panier come from the platform's MLS integration; ImmoContact
@@ -3381,7 +3217,7 @@ function renderDestinationModal() {
       ${results.map(p => resultRow(p, addedMls)).join('') || `
         <p class="helper-text" style="margin-top:14px;">Aucun résultat.</p>
         ${tab === 'adresse' ? `
-          <div class="info-banner clickable" data-goto-arret style="margin-top:10px;">${icon('plus')} <span>Adresse introuvable ? L'ajouter comme arrêt personnalisé.</span></div>
+          <div class="info-banner clickable" data-goto-arret style="margin-top:10px;">${icon('plus')} <span>Adresse introuvable ? L'ajouter comme adresse personnalisée.</span></div>
         ` : tab === 'mls' ? `
           <div class="info-banner clickable" data-goto-arret style="margin-top:10px;">${icon('plus')} <span>Numéro MLS introuvable ? Ajouter l'adresse manuellement.</span></div>
         ` : ''}`}
@@ -3413,19 +3249,6 @@ function renderDestinationModal() {
         <input class="input" id="stop-address" placeholder="Ex: 1250 Rue Sainte-Catherine, Montréal" value="${esc(state.destModalPrefillAddress)}">
       </div>
       <button class="btn btn-secondary btn-block" id="btn-add-custom-stop">${icon('plus')} Ajouter cet arrêt</button>
-    `;
-  } else if (tab === 'pause') {
-    body = `
-      <div class="field">
-        <label class="field-label" for="pause-duration">Durée de la pause</label>
-        <select class="input select" id="pause-duration">
-          <option value="15">15 minutes</option>
-          <option value="30" selected>30 minutes</option>
-          <option value="45">45 minutes</option>
-          <option value="60">60 minutes</option>
-        </select>
-      </div>
-      <button class="btn btn-secondary btn-block" id="btn-add-pause">${icon('plus')} Ajouter la pause</button>
     `;
   }
 
@@ -3615,33 +3438,6 @@ function renderReportScreen() {
       vous l'enverrez une fois les visites terminées.</p>`;
 }
 
-// Modifier une pause. Une propriété, elle, ne se modifie que par la modale de
-// demande de visite : son horaire est un engagement pris auprès d'un courtier
-// inscripteur, donc toute retouche repart en validation. Un second formulaire
-// local rouvrirait une porte pour changer un statut sans que personne réponde.
-function renderEditStopModal() {
-  const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
-  if (!stop || stop.type !== 'pause') return '';
-  return `
-    <div class="modal-overlay" id="modal-overlay">
-      <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-        <div class="modal-head"><h2 id="modal-title">Modifier la pause</h2><button class="modal-close" id="modal-close" aria-label="Fermer">${icon('x')}</button></div>
-        <div class="modal-body">
-          <div class="field">
-            <label class="field-label" for="edit-pause-duration">Durée</label>
-            <select class="input select" id="edit-pause-duration">
-              ${[15, 30, 45, 60].map(v => `<option value="${v}" ${v === stop.duration ? 'selected' : ''}>${v} minutes</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer" style="display:flex;gap:10px;">
-          <button class="btn btn-primary" id="btn-save-edit-pause">Enregistrer</button>
-          <button class="btn btn-outline" id="modal-cancel">Annuler</button>
-        </div>
-      </div>
-    </div>`;
-}
-
 // Seul point d'entrée pour modifier une propriété du tour, quel que soit le
 // bouton d'où l'on vient : même formulaire, même retour en validation.
 function openVisitEditor(stop) {
@@ -3738,9 +3534,6 @@ function bindListEvents() {
       const buyer = state.buyers.find(b => b.id === t.buyerId);
       state.draft = {
         buyer: buyer || null, date: t.date, time: t.time,
-        // Un tour enregistré avant que le choix existe part de la position :
-        // c'était son comportement, il le garde.
-        origin: t.origin ? { ...t.origin } : newOrigin(),
         stops: JSON.parse(JSON.stringify(t.stops)),
       };
       state.dirty = false;
@@ -3975,15 +3768,6 @@ function bindBuilderEvents() {
   const optimizeBtn = document.getElementById('btn-optimize');
   if (optimizeBtn) optimizeBtn.onclick = optimizeDraftStops;
 
-  const editOrigin = document.getElementById('btn-edit-origin');
-  if (editOrigin) editOrigin.onclick = () => {
-    const o = state.draft.origin || newOrigin();
-    state.originDraft = { mode: o.mode, address: o.address || '' };
-    state.modal = { type: 'origin' };
-    render();
-  };
-
-
   const toggleMap = document.getElementById('btn-toggle-map');
   if (toggleMap) toggleMap.onclick = () => { state.mapOpen = !state.mapOpen; render(); };
 
@@ -4008,34 +3792,21 @@ function bindBuilderEvents() {
 
   // Le crayon d'un bandeau porte sur l'intervalle entre deux visites, pas sur la
   // visite elle-même : il ouvre « Ajouter une destination » ancré à cet endroit,
-  // pour y glisser une pause, un arrêt personnalisé ou une propriété.
+  // pour y glisser un arrêt personnalisé ou une propriété.
   document.querySelectorAll('.banner-edit-btn[data-edit-stop]').forEach(el => {
     el.onclick = () => {
       state.insertBeforeId = el.getAttribute('data-edit-stop');
       state.modal = { type: 'destination', initialStops: state.draft.stops.length };
-      // Le bandeau parle de temps de trajet : la pause est l'insertion la plus
-      // probable à cet endroit. Les autres onglets restent à un clic.
-      state.destModalTab = 'pause';
+      state.destModalTab = defaultDestTab();
       state.destModalSearch = '';
       state.destModalPrefillAddress = '';
       render();
     };
   });
-  document.querySelectorAll('[data-edit-pause]').forEach(el => {
-    el.onclick = () => { state.modal = { type: 'editStop', stopId: el.getAttribute('data-edit-pause') }; render(); };
-  });
-  // Une pause se resupprime et se recrée en deux clics : la confirmer serait du
-  // bruit. Une propriété engage un courtier inscripteur, donc elle se confirme.
   document.querySelectorAll('[data-remove-stop]').forEach(el => {
     el.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-remove-stop'));
       if (!stop) return;
-      if (stop.type === 'pause') {
-        state.draft.stops = state.draft.stops.filter(s => s.id !== stop.id);
-        markDirtyIfSent();
-        render();
-        return;
-      }
       state.modal = { type: 'confirmRemoveStop', stopId: stop.id };
       render();
     };
@@ -4105,27 +3876,6 @@ function bindBuilderEvents() {
   });
 
   // Arbitrages posés sous chaque arrêt qui attend une décision.
-  document.querySelectorAll('[data-accept-proposed]').forEach(el => {
-    el.onclick = () => {
-      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-accept-proposed'));
-      if (!stop) return;
-      const at = stop.proposedStart;
-      acceptProposedStart(stop);
-      persistAnswer();
-      render();
-      showToast(`Visite confirmée à ${at ? at.replace(':', 'h') : 'l\'heure proposée'}.`, 'success');
-    };
-  });
-  document.querySelectorAll('[data-keep-request]').forEach(el => {
-    el.onclick = () => {
-      const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-keep-request'));
-      if (!stop) return;
-      setStopStatus(stop, 'pending');
-      persistAnswer();
-      render();
-      showToast(`Demande maintenue auprès de ${stop.courtier}.`);
-    };
-  });
   document.querySelectorAll('[data-remove-stop-inline]').forEach(el => {
     el.onclick = () => {
       const stop = state.draft.stops.find(s => s.id === el.getAttribute('data-remove-stop-inline'));
@@ -4268,14 +4018,12 @@ function mapHost() {
   return mapHostEl;
 }
 
-// Le trajet tracé : les propriétés dans l'ordre, précédées du point de départ.
-// Deux tours qui partagent cette signature partagent le même tracé et le même
-// cadrage — inutile de reconstruire.
+// Le trajet tracé : les propriétés dans l'ordre. Deux tours qui partagent
+// cette signature partagent le même tracé et le même cadrage — inutile de
+// reconstruire.
 function tourMapSignature() {
   const props = state.draft ? state.draft.stops.filter(s => s.type === 'property') : [];
-  const start = state.draft ? originPoint(state.draft.origin) : null;
-  return (start ? 'o:' + coordKey(coordsFor(start)) + '|' : '')
-    + props.map(s => s.id).join(',');
+  return props.map(s => s.id).join(',');
 }
 
 // Appelé après chaque rendu : replace la carte dans l'emplacement du moment, la
@@ -4366,9 +4114,6 @@ function buildTourMap() {
   if (!el || typeof L === 'undefined') return;
 
   const props = state.draft.stops.filter(s => s.type === 'property');
-  const start = originPoint(state.draft.origin);
-  // Le départ entre dans la signature : changer de point change le cadrage, donc
-  // la vue mémorisée ne vaut plus.
   const sig = tourMapSignature();
   const sameSet = tourMap.sig === sig && tourMap.center && tourMap.zoom != null;
 
@@ -4381,9 +4126,7 @@ function buildTourMap() {
     attribution: '&copy; OpenStreetMap',
   }).addTo(map);
 
-  // Le tracé part du point de départ : le premier segment est celui qui mène à
-  // la première visite, pas celui qui relie les deux premières propriétés.
-  const pts = routePoints(props, state.draft.origin);
+  const pts = routePoints(props);
   const latlngs = pts.map(s => { const c = coordsFor(s); return [c.lat, c.lng]; });
 
   // One polyline per leg rather than a single line, so each segment carries its
@@ -4451,20 +4194,6 @@ function buildTourMap() {
         iconSize: [54, 20], iconAnchor: [27, 10],
       }),
     }).addTo(map);
-  }
-
-  // Le départ n'est pas une visite : il ne prend pas de numéro. Losange vert
-  // contre pastilles rondes marine — la forme distingue avant la couleur.
-  if (props.length && start) {
-    const sc = coordsFor(start);
-    L.marker([sc.lat, sc.lng], {
-      title: start.label,
-      icon: L.divIcon({
-        className: 'tour-pin-wrap',
-        html: `<span class="tour-pin is-start" title="${esc(start.label)}">${icon('car')}</span>`,
-        iconSize: [28, 28], iconAnchor: [14, 14],
-      }),
-    }).addTo(map).bindPopup(`<strong>${esc(start.label)}</strong><br>${esc(start.address)}`);
   }
 
   props.forEach((s, i) => {
@@ -4772,19 +4501,8 @@ function bindModalEvents() {
       showToast(`${stopShortLabel(stop)} retiré du tour.`);
     };
   }
-  if (state.modal.type === 'origin') bindOriginModalEvents();
   if (state.modal.type === 'availability') bindAvailabilityModalEvents();
   if (state.modal.type === 'editBuyer') bindEditBuyerModalEvents();
-  if (state.modal.type === 'editStop') {
-    const savePause = document.getElementById('btn-save-edit-pause');
-    if (savePause) savePause.onclick = () => {
-      const stop = state.draft.stops.find(s => s.id === state.modal.stopId);
-      stop.duration = +document.getElementById('edit-pause-duration').value;
-      state.modal = null;
-      markDirtyIfSent();
-      render();
-    };
-  }
 }
 
 function escHandler(e) {
@@ -4793,46 +4511,6 @@ function escHandler(e) {
     document.removeEventListener('keydown', escHandler);
     document.removeEventListener('keydown', trapModalFocus);
   }
-}
-
-function bindOriginModalEvents() {
-  document.querySelectorAll('[data-origin-mode]').forEach(el => {
-    el.onclick = () => { state.originDraft.mode = el.getAttribute('data-origin-mode'); render(); };
-  });
-
-  const addr = document.getElementById('origin-address');
-  if (addr) {
-    // Les suggestions se recalculent à la frappe, donc on rerend. Le curseur est
-    // remis en fin de champ, sans quoi la saisie repartirait du début.
-    addr.oninput = () => {
-      state.originDraft.address = addr.value;
-      render();
-      const again = document.getElementById('origin-address');
-      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-    };
-  }
-
-  document.querySelectorAll('[data-origin-sug]').forEach(el => {
-    el.onclick = () => { state.originDraft.address = el.getAttribute('data-origin-sug'); render(); };
-  });
-
-  const save = document.getElementById('btn-save-origin');
-  if (save) save.onclick = () => {
-    const d = state.originDraft;
-    if (d.mode === 'address' && !d.address.trim()) return;
-    state.draft.origin = d.mode === 'address'
-      ? { mode: 'address', address: d.address.trim() }
-      : { mode: d.mode, address: '' };
-    state.originDraft = null;
-    markDirtyIfSent();
-    closeModal();
-    // Ce que le courtier obtient, pas le champ qu'il a rempli : le message nomme
-    // le point retenu.
-    const start = originPoint(state.draft.origin);
-    showToast(start
-      ? `Départ depuis ${start.address.split(',')[0]}.`
-      : 'Le tour commence à la première visite.', 'success');
-  };
 }
 
 function bindEditBuyerModalEvents() {
@@ -5128,14 +4806,6 @@ function bindDestinationModalEvents() {
     markDirtyIfSent();
     closeModal();
     if (inserted) showToast(`Arrêt inséré avant ${stopShortLabel(inserted)}.`, 'success');
-  };
-  const addPause = document.getElementById('btn-add-pause');
-  if (addPause) addPause.onclick = () => {
-    const duration = +document.getElementById('pause-duration').value;
-    const inserted = addStopToDraft(makePause(duration));
-    markDirtyIfSent();
-    closeModal();
-    if (inserted) showToast(`Pause de ${duration} min insérée avant ${stopShortLabel(inserted)}.`, 'success');
   };
 }
 
